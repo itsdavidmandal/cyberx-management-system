@@ -49,3 +49,4 @@ Then, open your browser and go to: `http://127.0.0.1:8000`
 - `backend/`: FastAPI application, models, and database configuration.
 - `static/`: Frontend assets (HTML, CSS, JavaScript).
 - `planning.db`: Persistent SQLite database (auto-generated).
+

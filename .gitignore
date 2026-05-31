@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Database
+planning.db
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+push.sh
+run.sh
