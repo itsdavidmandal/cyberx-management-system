@@ -26,18 +26,50 @@
     <main class="container mx-auto mt-8 p-4">
         <!-- Dashboard View -->
         <section id="dashboard" class="view">
-            <h2 class="text-3xl font-bold mb-6">This Month</h2>
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-bold">This Month</h2>
+                <div class="flex gap-2">
+                    <button onclick="exportCSV()" class="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded shadow-sm hover:bg-gray-50 transition-colors">
+                        <i data-lucide="download"></i> CSV
+                    </button>
+                    <button onclick="exportPDF()" class="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded shadow-sm hover:bg-gray-50 transition-colors">
+                        <i data-lucide="file-text"></i> PDF
+                    </button>
+                </div>
+            </div>
             <div id="dashboard-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <!-- Cards will be injected here -->
             </div>
         </section>
 
-        <!-- Calendar View (Simplified) -->
+        <!-- Calendar View -->
         <section id="calendar" class="view hidden">
-            <h2 class="text-3xl font-bold mb-6">Calendar View</h2>
-            <div id="calendar-grid" class="bg-white p-4 rounded-lg shadow overflow-x-auto">
-                <!-- Calendar content here -->
-                <p class="text-gray-500 italic">Coming soon: Full grid calendar logic.</p>
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-bold">Calendar</h2>
+                <div class="flex items-center gap-4 bg-white shadow rounded-lg p-2">
+                    <button onclick="changeMonth(-1)" class="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                        <i data-lucide="chevron-left"></i>
+                    </button>
+                    <span id="current-month-display" class="text-lg font-semibold min-w-[150px] text-center">Month Year</span>
+                    <button onclick="changeMonth(1)" class="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                        <i data-lucide="chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+                <div class="grid grid-cols-7 bg-gray-100 border-b border-gray-200">
+                    <div class="p-3 text-center text-xs font-bold text-gray-500 uppercase">Sun</div>
+                    <div class="p-3 text-center text-xs font-bold text-gray-500 uppercase">Mon</div>
+                    <div class="p-3 text-center text-xs font-bold text-gray-500 uppercase">Tue</div>
+                    <div class="p-3 text-center text-xs font-bold text-gray-500 uppercase">Wed</div>
+                    <div class="p-3 text-center text-xs font-bold text-gray-500 uppercase">Thu</div>
+                    <div class="p-3 text-center text-xs font-bold text-gray-500 uppercase">Fri</div>
+                    <div class="p-3 text-center text-xs font-bold text-gray-500 uppercase">Sat</div>
+                </div>
+                <div id="calendar-grid" class="grid grid-cols-7 divide-x divide-y divide-gray-200">
+                    <!-- Days will be injected here -->
+                </div>
             </div>
         </section>
 

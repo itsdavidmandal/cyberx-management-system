@@ -21,3 +21,21 @@
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* Calendar Specific Styles */
+#calendar-grid > div {
+    transition: background-color 0.2s;
+}
+
+#calendar-grid > div:hover {
+    background-color: #f9fafb;
+}
+
+.event-container::-webkit-scrollbar {
+    width: 4px;
+}
+
+.event-container::-webkit-scrollbar-thumb {
+    background: #e0e7ff;
+    border-radius: 2px;
+}

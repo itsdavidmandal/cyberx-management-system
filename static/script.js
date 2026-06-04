@@ -1,4 +1,5 @@
 let events = [];
+let viewDate = new Date();
 
 async function fetchEvents() {
     try {
@@ -6,14 +7,23 @@ async function fetchEvents() {
         events = await response.json();
         renderDashboard();
         renderKanban();
+        renderCalendar();
     } catch (error) {
         console.error('Error fetching events:', error);
     }
 }
 
+function changeMonth(delta) {
+    viewDate.setMonth(viewDate.getMonth() + delta);
+    renderCalendar();
+}
+
 function showView(viewId) {
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     document.getElementById(viewId).classList.remove('hidden');
+    if (viewId === 'calendar') {
+        renderCalendar();
+    }
 }
 
 function openModal(event = null) {
@@ -151,6 +161,81 @@ function renderKanban() {
     });
 }
 
+function renderCalendar() {
+    const grid = document.getElementById('calendar-grid');
+    const display = document.getElementById('current-month-display');
+    if (!grid || !display) return;
+
+    grid.innerHTML = '';
+    
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    
+    display.innerText = viewDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    // Previous month padding
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+    for (let i = firstDay; i > 0; i--) {
+        const day = prevMonthLastDay - i + 1;
+        const cell = createCalendarCell(day, false);
+        grid.appendChild(cell);
+    }
+
+    // Current month days
+    const today = new Date();
+    for (let d = 1; d <= daysInMonth; d++) {
+        const isToday = today.getDate() === d && today.getMonth() === month && today.getFullYear() === year;
+        const cell = createCalendarCell(d, true, isToday);
+        
+        // Add events
+        const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const dayEvents = events.filter(e => e.date === dateString);
+        
+        dayEvents.forEach(e => {
+            const pill = document.createElement('div');
+            pill.className = 'mt-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-medium rounded truncate cursor-pointer hover:bg-indigo-200';
+            pill.innerText = e.title;
+            pill.onclick = (event) => {
+                event.stopPropagation();
+                editEvent(e);
+            };
+            cell.querySelector('.event-container').appendChild(pill);
+        });
+
+        // Click to add event
+        cell.onclick = () => {
+            openModal();
+            document.getElementById('date').value = dateString;
+        };
+
+        grid.appendChild(cell);
+    }
+
+    // Next month padding
+    const totalCells = grid.children.length;
+    const remaining = 42 - totalCells; // 6 rows of 7 days
+    for (let i = 1; i <= remaining; i++) {
+        const cell = createCalendarCell(i, false);
+        grid.appendChild(cell);
+    }
+    lucide.createIcons();
+}
+
+function createCalendarCell(day, isCurrentMonth, isToday = false) {
+    const cell = document.createElement('div');
+    cell.className = `min-h-[100px] p-2 bg-white flex flex-col ${isCurrentMonth ? '' : 'bg-gray-50 text-gray-400'}`;
+    if (isToday) cell.classList.add('bg-indigo-50');
+    
+    cell.innerHTML = `
+        <span class="text-sm font-semibold ${isToday ? 'bg-indigo-600 text-white w-6 h-6 flex items-center justify-center rounded-full' : ''}">${day}</span>
+        <div class="event-container mt-1 space-y-1 overflow-y-auto max-h-[80px]"></div>
+    `;
+    return cell;
+}
+
 function editEvent(event) {
     openModal(event);
 }
@@ -164,6 +249,14 @@ async function deleteEvent(id) {
             console.error('Error deleting event:', error);
         }
     }
+}
+
+function exportCSV() {
+    window.location.href = '/api/events/export/csv';
+}
+
+function exportPDF() {
+    window.location.href = '/api/events/export/pdf';
 }
 
 // Initial Load
