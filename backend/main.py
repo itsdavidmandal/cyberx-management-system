@@ -38,7 +38,10 @@ class Event(EventBase):
 # API Endpoints
 @app.post("/api/events/", response_model=Event)
 def create_event(event: EventCreate, db: Session = Depends(get_db)):
-    db_event = models.Event(**event.model_dump())
+    data = event.model_dump()
+    if "status" in data and data["status"]:
+        data["status"] = data["status"].strip().title()
+    db_event = models.Event(**data)
     db.add(db_event)
     db.commit()
     db.refresh(db_event)
