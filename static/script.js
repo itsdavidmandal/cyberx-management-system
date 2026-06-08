@@ -1,22 +1,42 @@
-let events = [];
+let tasks = [];
+let projects = [];
 let viewDate = new Date();
 
-// 1. Strict Status Normalization
+// Helper: Check if status is "Ideation"
 function isIdeation(status) {
     if (status === null || status === undefined) return false;
     return status.toString().trim().toLowerCase() === 'ideation';
 }
 
-async function fetchEvents() {
+async function fetchData() {
     try {
-        const response = await fetch('/api/events/');
-        events = await response.json();
+        const [tasksRes, projectsRes] = await Promise.all([
+            fetch('/api/events/'),
+            fetch('/api/projects/')
+        ]);
+        tasks = await tasksRes.json();
+        projects = await projectsRes.json();
+        
+        updateProjectDropdowns();
         renderDashboard();
         renderKanban();
         renderCalendar();
     } catch (error) {
-        console.error('Error fetching events:', error);
+        console.error('Error fetching data:', error);
     }
+}
+
+function updateProjectDropdowns() {
+    const select = document.getElementById('project-id-select');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">Unassigned</option>';
+    projects.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        select.appendChild(opt);
+    });
 }
 
 function changeMonth(delta) {
@@ -27,27 +47,29 @@ function changeMonth(delta) {
 function showView(viewId) {
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     document.getElementById(viewId).classList.remove('hidden');
-    if (viewId === 'calendar') {
-        renderCalendar();
-    }
+    if (viewId === 'calendar') renderCalendar();
+    if (viewId === 'kanban') renderKanban();
+    if (viewId === 'dashboard') renderDashboard();
 }
 
-function openModal(event = null) {
+// Task Modal Logic
+function openModal(task = null) {
     const modal = document.getElementById('modal');
     const form = document.getElementById('event-form');
     const modalTitle = document.getElementById('modal-title');
     const statusSelect = document.getElementById('status');
+    const projectSelect = document.getElementById('project-id-select');
 
-    if (event) {
-        modalTitle.innerText = 'Edit Event';
-        document.getElementById('event-id').value = event.id;
-        document.getElementById('title').value = event.title;
-        document.getElementById('description').value = event.description;
-        document.getElementById('date').value = event.date;
-        document.getElementById('budget').value = event.budget;
+    if (task) {
+        modalTitle.innerText = 'Edit Task';
+        document.getElementById('event-id').value = task.id;
+        document.getElementById('title').value = task.title;
+        document.getElementById('description').value = task.description || '';
+        document.getElementById('date').value = task.date;
+        document.getElementById('budget').value = task.budget;
+        projectSelect.value = task.project_id || "";
         
-        // Robust case-insensitive status selection
-        const statusToMatch = (event.status || "").toString().trim().toLowerCase();
+        const statusToMatch = (task.status || "").toString().trim().toLowerCase();
         for (let i = 0; i < statusSelect.options.length; i++) {
             if (statusSelect.options[i].value.toLowerCase() === statusToMatch) {
                 statusSelect.selectedIndex = i;
@@ -55,23 +77,53 @@ function openModal(event = null) {
             }
         }
     } else {
-        modalTitle.innerText = 'Add New Event';
+        modalTitle.innerText = 'Add New Task';
         form.reset();
         document.getElementById('event-id').value = '';
-        // 2. Date Parsing: Use local time for "today"
         const localToday = new Date();
         const year = localToday.getFullYear();
         const month = String(localToday.getMonth() + 1).padStart(2, '0');
         const day = String(localToday.getDate()).padStart(2, '0');
         document.getElementById('date').value = `${year}-${month}-${day}`;
     }
-
     modal.classList.remove('hidden');
 }
 
 function closeModal() {
     document.getElementById('modal').classList.add('hidden');
 }
+
+// Project Modal Logic
+function openProjectModal() {
+    document.getElementById('project-modal').classList.remove('hidden');
+}
+
+function closeProjectModal() {
+    document.getElementById('project-modal').classList.add('hidden');
+    document.getElementById('project-form').reset();
+}
+
+document.getElementById('project-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = {
+        name: document.getElementById('project-name').value,
+        description: document.getElementById('project-description').value
+    };
+
+    try {
+        const response = await fetch('/api/projects/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (response.ok) {
+            closeProjectModal();
+            fetchData();
+        }
+    } catch (error) {
+        console.error('Error saving project:', error);
+    }
+});
 
 document.getElementById('event-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -81,7 +133,8 @@ document.getElementById('event-form').addEventListener('submit', async (e) => {
         description: document.getElementById('description').value,
         date: document.getElementById('date').value,
         budget: parseFloat(document.getElementById('budget').value) || 0,
-        status: document.getElementById('status').value
+        status: document.getElementById('status').value,
+        project_id: parseInt(document.getElementById('project-id-select').value) || null
     };
 
     const method = id ? 'PUT' : 'POST';
@@ -95,37 +148,48 @@ document.getElementById('event-form').addEventListener('submit', async (e) => {
         });
         if (response.ok) {
             closeModal();
-            fetchEvents();
+            fetchData();
         }
     } catch (error) {
-        console.error('Error saving event:', error);
+        console.error('Error saving task:', error);
     }
 });
 
-function calculateDaysLeft(eventDate) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    // 2. Date Parsing: Strict ISO parsing for local day
-    const event = new Date(eventDate + "T00:00:00");
-    const diffTime = event - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+async function toggleTask(taskId) {
+    try {
+        const response = await fetch(`/api/events/${taskId}/toggle`, { method: 'PATCH' });
+        if (response.ok) fetchData();
+    } catch (error) {
+        console.error('Error toggling task:', error);
+    }
 }
 
-function createEventCard(e) {
-    const daysLeft = calculateDaysLeft(e.date);
+function calculateDaysLeft(dateStr) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const event = new Date(dateStr + "T00:00:00");
+    const diffTime = event - today;
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+function createTaskCard(t) {
+    const daysLeft = calculateDaysLeft(t.date);
     const card = document.createElement('div');
-    const ideation = isIdeation(e.status);
+    const ideation = isIdeation(t.status);
     const statusColor = ideation ? 'bg-yellow-100 text-yellow-700' : 'bg-indigo-100 text-indigo-700';
     const borderColor = ideation ? 'border-yellow-400' : 'border-indigo-500';
     
-    card.className = `bg-white p-6 rounded-lg shadow-md border-t-4 ${borderColor} hover:shadow-lg transition-shadow`;
+    card.className = `bg-white p-6 rounded-lg shadow-md border-t-4 ${borderColor} hover:shadow-lg transition-shadow relative ${t.completed ? 'opacity-75' : ''}`;
+    
     card.innerHTML = `
         <div class="flex justify-between items-start mb-4">
-            <h3 class="text-xl font-bold">${e.title}</h3>
-            <span class="px-2 py-1 ${statusColor} text-xs font-semibold rounded">${e.status}</span>
+            <div class="flex items-center gap-3">
+                <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTask(${t.id})" class="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+                <h3 class="text-xl font-bold ${t.completed ? 'line-through text-gray-400' : ''}">${t.title}</h3>
+            </div>
+            <span class="px-2 py-1 ${statusColor} text-xs font-semibold rounded">${t.status}</span>
         </div>
-        <p class="text-gray-600 mb-4 text-sm line-clamp-2">${e.description || 'No description'}</p>
+        <p class="text-gray-600 mb-4 text-sm line-clamp-2">${t.description || 'No description'}</p>
         <div class="flex justify-between items-center text-sm text-gray-500">
             <div class="flex items-center gap-1">
                 <i data-lucide="clock" class="w-4 h-4"></i>
@@ -133,25 +197,20 @@ function createEventCard(e) {
             </div>
             <div class="flex items-center gap-1">
                 <i data-lucide="dollar-sign" class="w-4 h-4"></i>
-                <span>${e.budget.toLocaleString()}</span>
+                <span>${t.budget.toLocaleString()}</span>
             </div>
         </div>
         <div class="mt-4 pt-4 border-t flex justify-end gap-2">
-            <button class="edit-btn text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</button>
-            <button class="delete-btn text-red-600 hover:text-red-800 text-sm font-medium">Delete</button>
+            <button onclick="editTask(${t.id})" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</button>
+            <button onclick="deleteTask(${t.id})" class="text-red-600 hover:text-red-800 text-sm font-medium">Delete</button>
         </div>
     `;
-    
-    card.querySelector('.edit-btn').onclick = () => editEvent(e);
-    card.querySelector('.delete-btn').onclick = () => deleteEvent(e.id);
-    
     return card;
 }
 
 function renderDashboard() {
     const monthlyList = document.getElementById('dashboard-list');
     const ideationList = document.getElementById('ideation-list');
-    
     if (!monthlyList || !ideationList) return;
     
     monthlyList.innerHTML = '';
@@ -161,82 +220,88 @@ function renderDashboard() {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    // 4. Mutually Exclusive Rendering with 3. Explicit Logging
-    events.forEach(e => {
-        const ideation = isIdeation(e.status);
-        console.log("Rendering event:", e.title, "Status:", e.status, "IsIdeation:", ideation);
-        
-        if (ideation) {
-            ideationList.appendChild(createEventCard(e));
+    tasks.forEach(t => {
+        if (isIdeation(t.status)) {
+            ideationList.appendChild(createTaskCard(t));
         } else {
-            // Check if it belongs to current month
-            const d = new Date(e.date + "T00:00:00");
+            const d = new Date(t.date + "T00:00:00");
             if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
-                monthlyList.appendChild(createEventCard(e));
+                monthlyList.appendChild(createTaskCard(t));
             }
         }
     });
 
-    if (monthlyList.children.length === 0) {
-        monthlyList.innerHTML = '<p class="text-gray-500 col-span-full py-4 text-center bg-white rounded-lg border border-dashed border-gray-300">No events confirmed for this month.</p>';
-    }
-
-    if (ideationList.children.length === 0) {
-        ideationList.innerHTML = '<p class="text-gray-500 col-span-full py-4 text-center bg-white rounded-lg border border-dashed border-gray-300">No ideation events yet. Start brainstorming!</p>';
-    }
+    if (monthlyList.children.length === 0) monthlyList.innerHTML = '<p class="text-gray-500 col-span-full py-4 text-center">No tasks confirmed for this month.</p>';
+    if (ideationList.children.length === 0) ideationList.innerHTML = '<p class="text-gray-500 col-span-full py-4 text-center">No ideation tasks yet.</p>';
     
     lucide.createIcons();
 }
 
 function renderKanban() {
-    const columns = {
-        'Ideation': document.getElementById('kanban-ideation'),
-        'To-Do': document.getElementById('kanban-todo'),
-        'In Progress': document.getElementById('kanban-progress'),
-        'Done': document.getElementById('kanban-done')
-    };
+    const container = document.getElementById('kanban-swimlanes');
+    if (!container) return;
+    container.innerHTML = '';
 
-    Object.values(columns).forEach(col => {
-        if (col) col.innerHTML = '';
+    // Group tasks by project
+    const groups = { null: { name: 'Unassigned', tasks: [] } };
+    projects.forEach(p => groups[p.id] = { name: p.name, tasks: [] });
+    tasks.forEach(t => {
+        const gid = t.project_id || 'null';
+        if (groups[gid]) groups[gid].tasks.push(t);
     });
 
-    events.forEach(e => {
-        const ideation = isIdeation(e.status);
-        const card = document.createElement('div');
-        card.className = 'bg-white p-4 rounded shadow-sm border-l-4 border-gray-400 cursor-pointer hover:bg-gray-50 transition-colors';
-        
-        const statusClean = (e.status || "").toString().toLowerCase().trim();
-        
-        if (ideation) {
-            card.classList.replace('border-gray-400', 'border-yellow-400');
-        } else if (statusClean === 'in progress') {
-            card.classList.replace('border-gray-400', 'border-blue-400');
-        } else if (statusClean === 'done') {
-            card.classList.replace('border-gray-400', 'border-green-400');
-        }
+    Object.entries(groups).forEach(([id, group]) => {
+        if (group.tasks.length === 0 && id === 'null') return; // Skip empty unassigned
 
-        card.innerHTML = `
-            <h4 class="font-semibold text-gray-800">${e.title}</h4>
-            <div class="flex justify-between items-center mt-2">
-                <p class="text-xs text-gray-500">${e.date}</p>
-                <p class="text-xs font-bold text-gray-700">$${e.budget.toLocaleString()}</p>
+        const swimlane = document.createElement('div');
+        swimlane.className = 'bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden';
+        swimlane.innerHTML = `
+            <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-700 flex items-center gap-2">
+                    <i data-lucide="folder" class="w-5 h-5 text-indigo-500"></i> ${group.name}
+                </h3>
+                <span class="text-sm text-gray-500">${group.tasks.length} tasks</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-0 divide-x divide-gray-100">
+                ${['Ideation', 'To-Do', 'In Progress', 'Done'].map(status => `
+                    <div class="p-4 min-h-[200px] bg-gray-50/30">
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">${status}</h4>
+                        <div id="lane-${id}-${status.replace(' ', '-')}" class="space-y-3"></div>
+                    </div>
+                `).join('')}
             </div>
         `;
-        card.onclick = () => editEvent(e);
-        
-        // Robust column mapping
-        let targetCol = null;
-        if (ideation) {
-            targetCol = columns['Ideation'];
-        } else {
-            const key = Object.keys(columns).find(k => k.toLowerCase() === statusClean);
-            if (key) targetCol = columns[key];
-        }
-        
-        if (targetCol) {
-            targetCol.appendChild(card);
-        }
+        container.appendChild(swimlane);
+
+        group.tasks.forEach(t => {
+            const laneId = `lane-${id}-${t.status.replace(' ', '-')}`;
+            const lane = document.getElementById(laneId);
+            if (lane) {
+                const card = document.createElement('div');
+                card.className = `bg-white p-4 rounded shadow-sm border-l-4 cursor-pointer hover:bg-gray-50 transition-colors ${t.completed ? 'opacity-60' : ''}`;
+                
+                const statusClean = t.status.toLowerCase();
+                if (statusClean === 'ideation') card.classList.add('border-yellow-400');
+                else if (statusClean === 'in progress') card.classList.add('border-blue-400');
+                else if (statusClean === 'done') card.classList.add('border-green-400');
+                else card.classList.add('border-gray-300');
+
+                card.innerHTML = `
+                    <div class="flex items-start gap-2">
+                        <input type="checkbox" ${t.completed ? 'checked' : ''} onclick="event.stopPropagation(); toggleTask(${t.id})" class="mt-1 w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <h4 class="font-semibold text-gray-800 leading-tight ${t.completed ? 'line-through text-gray-400' : ''}">${t.title}</h4>
+                    </div>
+                    <div class="flex justify-between items-center mt-3">
+                        <p class="text-[10px] text-gray-500 uppercase font-medium tracking-tighter">${t.date}</p>
+                        <p class="text-xs font-bold text-gray-700">$${t.budget.toLocaleString()}</p>
+                    </div>
+                `;
+                card.onclick = () => editTask(t.id);
+                lane.appendChild(card);
+            }
+        });
     });
+    lucide.createIcons();
 }
 
 function renderCalendar() {
@@ -245,63 +310,37 @@ function renderCalendar() {
     if (!grid || !display) return;
 
     grid.innerHTML = '';
-    
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
-    
     display.innerText = viewDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
-    // Previous month padding
     const prevMonthLastDay = new Date(year, month, 0).getDate();
-    for (let i = firstDay; i > 0; i--) {
-        const day = prevMonthLastDay - i + 1;
-        const cell = createCalendarCell(day, false);
-        grid.appendChild(cell);
-    }
 
-    // Current month days
+    for (let i = firstDay; i > 0; i--) grid.appendChild(createCalendarCell(prevMonthLastDay - i + 1, false));
+
     const today = new Date();
     for (let d = 1; d <= daysInMonth; d++) {
         const isToday = today.getDate() === d && today.getMonth() === month && today.getFullYear() === year;
         const cell = createCalendarCell(d, true, isToday);
-        
-        // Add events
         const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        // 2. Date Parsing comparison
-        const dayEvents = events.filter(e => e.date === dateString);
         
-        dayEvents.forEach(e => {
+        tasks.filter(t => t.date === dateString).forEach(t => {
             const pill = document.createElement('div');
-            const ideation = isIdeation(e.status);
-            const pillColor = ideation ? 'bg-yellow-100 text-yellow-700' : 'bg-indigo-100 text-indigo-700';
-            pill.className = `mt-1 px-2 py-0.5 ${pillColor} text-[10px] font-medium rounded truncate cursor-pointer hover:opacity-80`;
-            pill.innerText = e.title;
-            pill.onclick = (event) => {
-                event.stopPropagation();
-                editEvent(e);
-            };
+            const pillColor = isIdeation(t.status) ? 'bg-yellow-100 text-yellow-700' : 'bg-indigo-100 text-indigo-700';
+            pill.className = `mt-1 px-2 py-0.5 ${pillColor} text-[10px] font-medium rounded truncate cursor-pointer hover:opacity-80 ${t.completed ? 'line-through opacity-60' : ''}`;
+            pill.innerText = t.title;
+            pill.onclick = (e) => { e.stopPropagation(); editTask(t.id); };
             cell.querySelector('.event-container').appendChild(pill);
         });
 
-        // Click to add event
-        cell.onclick = () => {
-            openModal();
-            document.getElementById('date').value = dateString;
-        };
-
+        cell.onclick = () => { openModal(); document.getElementById('date').value = dateString; };
         grid.appendChild(cell);
     }
 
-    // Next month padding
-    const totalCells = grid.children.length;
-    const remaining = 42 - totalCells; // 6 rows of 7 days
-    for (let i = 1; i <= remaining; i++) {
-        const cell = createCalendarCell(i, false);
-        grid.appendChild(cell);
-    }
+    const remaining = 42 - grid.children.length;
+    for (let i = 1; i <= remaining; i++) grid.appendChild(createCalendarCell(i, false));
     lucide.createIcons();
 }
 
@@ -309,36 +348,26 @@ function createCalendarCell(day, isCurrentMonth, isToday = false) {
     const cell = document.createElement('div');
     cell.className = `min-h-[100px] p-2 bg-white flex flex-col border-r border-b border-gray-100 ${isCurrentMonth ? '' : 'bg-gray-50 text-gray-400'}`;
     if (isToday) cell.classList.add('bg-indigo-50');
-    
-    cell.innerHTML = `
-        <span class="text-sm font-semibold ${isToday ? 'bg-indigo-600 text-white w-6 h-6 flex items-center justify-center rounded-full' : ''}">${day}</span>
-        <div class="event-container mt-1 space-y-1 overflow-y-auto max-h-[80px]"></div>
-    `;
+    cell.innerHTML = `<span class="text-sm font-semibold ${isToday ? 'bg-indigo-600 text-white w-6 h-6 flex items-center justify-center rounded-full' : ''}">${day}</span><div class="event-container mt-1 space-y-1 overflow-y-auto max-h-[80px]"></div>`;
     return cell;
 }
 
-function editEvent(event) {
-    openModal(event);
+function editTask(id) {
+    const task = tasks.find(t => t.id === id);
+    if (task) openModal(task);
 }
 
-async function deleteEvent(id) {
-    if (confirm('Are you sure you want to delete this event?')) {
+async function deleteTask(id) {
+    if (confirm('Delete this task?')) {
         try {
             const response = await fetch(`/api/events/${id}`, { method: 'DELETE' });
-            if (response.ok) fetchEvents();
-        } catch (error) {
-            console.error('Error deleting event:', error);
-        }
+            if (response.ok) fetchData();
+        } catch (error) { console.error('Error:', error); }
     }
 }
 
-function exportCSV() {
-    window.location.href = '/api/events/export/csv';
-}
+function exportCSV() { window.location.href = '/api/events/export/csv'; }
+function exportPDF() { window.location.href = '/api/events/export/pdf'; }
 
-function exportPDF() {
-    window.location.href = '/api/events/export/pdf';
-}
-
-// Initial Load
-fetchEvents();
+// Init
+fetchData();
