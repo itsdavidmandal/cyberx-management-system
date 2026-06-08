@@ -109,7 +109,8 @@ document.getElementById('project-form').addEventListener('submit', async (e) => 
         name: document.getElementById('project-name').value,
         description: document.getElementById('project-description').value,
         start_date: document.getElementById('project-start-date').value || null,
-        end_date: document.getElementById('project-end-date').value || null
+        end_date: document.getElementById('project-end-date').value || null,
+        budget: parseFloat(document.getElementById('project-budget').value) || 0
     };
 
     try {
@@ -205,6 +206,138 @@ async function handleDrop(e, newStatus) {
     } catch (error) {
         console.error('Error updating task status:', error);
     }
+}
+
+// Finance Logic
+async function openFinanceModal(projectId) {
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
+
+    document.getElementById('finance-project-id').value = projectId;
+    document.getElementById('finance-project-name').textContent = project.name;
+    document.getElementById('finance-project-dates').textContent = 
+        project.start_date && project.end_date ? `${project.start_date} → ${project.end_date}` : 'No timeline set';
+    
+    // Set default date to today
+    document.getElementById('expense-date').value = new Date().toISOString().split('T')[0];
+    
+    document.getElementById('finance-modal').classList.remove('hidden');
+    fetchExpenses(projectId);
+}
+
+function closeFinanceModal() {
+    document.getElementById('finance-modal').classList.add('hidden');
+    document.getElementById('expense-form').reset();
+}
+
+async function fetchExpenses(projectId) {
+    try {
+        const response = await fetch(`/api/projects/${projectId}/expenses/`);
+        const expenses = await response.json();
+        const project = projects.find(p => p.id === projectId);
+        renderExpenses(expenses, project.budget);
+    } catch (error) {
+        console.error('Error fetching expenses:', error);
+    }
+}
+
+function renderExpenses(expenses, projectBudget) {
+    const tbody = document.getElementById('expense-list-body');
+    const noMsg = document.getElementById('no-expenses-msg');
+    tbody.innerHTML = '';
+    
+    let totalSpent = 0;
+    expenses.forEach(exp => {
+        totalSpent += exp.amount;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="px-6 py-4 font-bold text-brand-dark text-sm">${exp.name}</td>
+            <td class="px-6 py-4 text-gray-500 text-xs">${exp.date}</td>
+            <td class="px-6 py-4 font-black text-brand-dark text-sm">$${exp.amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+            <td class="px-6 py-4 text-center">
+                ${exp.receipt_path ? `
+                    <button onclick="previewReceipt('${exp.receipt_path}')" class="text-brand-blue hover:text-brand-dark transition-colors">
+                        <i data-lucide="image" class="w-5 h-5 mx-auto"></i>
+                    </button>
+                ` : '<span class="text-gray-300 text-[10px]">None</span>'}
+            </td>
+            <td class="px-6 py-4 text-right">
+                <button onclick="deleteExpense(${exp.id})" class="text-gray-300 hover:text-brand-red transition-colors">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    if (expenses.length === 0) noMsg.classList.remove('hidden');
+    else noMsg.classList.add('hidden');
+
+    // Update Overview
+    document.getElementById('finance-total-spent').textContent = `$${totalSpent.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+    document.getElementById('finance-total-budget').textContent = `$${projectBudget.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+    
+    const percent = projectBudget > 0 ? Math.min(100, (totalSpent / projectBudget) * 100) : 0;
+    document.getElementById('finance-budget-percent').textContent = `${Math.round(percent)}%`;
+    const bar = document.getElementById('finance-budget-bar');
+    bar.style.width = `${percent}%`;
+    
+    if (percent > 90) bar.className = 'bg-brand-red h-3 rounded-full transition-all duration-500';
+    else if (percent > 70) bar.className = 'bg-yellow-500 h-3 rounded-full transition-all duration-500';
+    else bar.className = 'bg-brand-blue h-3 rounded-full transition-all duration-500';
+
+    lucide.createIcons();
+}
+
+document.getElementById('expense-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const projectId = document.getElementById('finance-project-id').value;
+    const formData = new FormData();
+    formData.append('name', document.getElementById('expense-name').value);
+    formData.append('amount', document.getElementById('expense-amount').value);
+    formData.append('date', document.getElementById('expense-date').value);
+    
+    const fileInput = document.getElementById('expense-receipt');
+    if (fileInput.files[0]) {
+        formData.append('receipt', fileInput.files[0]);
+    }
+
+    try {
+        const response = await fetch(`/api/projects/${projectId}/expenses/`, {
+            method: 'POST',
+            body: formData
+        });
+        if (response.ok) {
+            document.getElementById('expense-form').reset();
+            fetchExpenses(projectId);
+        }
+    } catch (error) {
+        console.error('Error saving expense:', error);
+    }
+});
+
+async function deleteExpense(id) {
+    if (confirm('Delete this expense entry?')) {
+        try {
+            const response = await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+            if (response.ok) {
+                const projectId = document.getElementById('finance-project-id').value;
+                fetchExpenses(projectId);
+            }
+        } catch (error) { console.error('Error:', error); }
+    }
+}
+
+function previewReceipt(path) {
+    const overlay = document.getElementById('receipt-preview');
+    const img = document.getElementById('preview-img');
+    img.src = '/' + path;
+    overlay.classList.remove('hidden');
+}
+
+function downloadProjectReport() {
+    const projectId = document.getElementById('finance-project-id').value;
+    window.location.href = `/api/projects/${projectId}/report`;
 }
 
 function calculateDaysLeft(dateStr) {
@@ -311,9 +444,14 @@ function renderKanban() {
                     </h3>
                     ${dateDisplay}
                     ${id !== 'null' ? `
-                        <button onclick="deleteProject(${id})" class="text-gray-400 hover:text-brand-red p-1 transition-colors" title="Delete Project">
-                            <i data-lucide="trash-2" class="w-5 h-5"></i>
-                        </button>
+                        <div class="flex gap-2 ml-4">
+                            <button onclick="openFinanceModal(${id})" class="bg-brand-blue/10 text-brand-blue hover:bg-brand-blue hover:text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1">
+                                <i data-lucide="dollar-sign" class="w-3 h-3"></i> Finance
+                            </button>
+                            <button onclick="deleteProject(${id})" class="text-gray-400 hover:text-brand-red p-1 transition-colors" title="Delete Project">
+                                <i data-lucide="trash-2" class="w-5 h-5"></i>
+                            </button>
+                        </div>
                     ` : ''}
                 </div>
                 <span class="bg-brand-dark text-white px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest">${group.tasks.length} tasks</span>

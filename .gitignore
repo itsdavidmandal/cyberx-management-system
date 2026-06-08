@@ -18,3 +18,6 @@ planning.db
 .DS_Store
 push.sh
 run.sh
+
+# Uploads
+static/uploads/

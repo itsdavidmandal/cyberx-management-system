@@ -153,7 +153,7 @@
                         <input type="date" id="date" required class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
                     </div>
                     <div>
-                        <label class="block text-sm font-bold text-brand-dark mb-1">Budget</label>
+                        <label class="block text-sm font-bold text-brand-dark mb-1">Planned Budget</label>
                         <input type="number" id="budget" step="0.01" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
                     </div>
                 </div>
@@ -199,6 +199,10 @@
                     </div>
                 </div>
                 <div>
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Total Project Budget ($)</label>
+                    <input type="number" id="project-budget" step="0.01" value="0.00" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
+                </div>
+                <div>
                     <label class="block text-sm font-bold text-brand-dark mb-1">Description</label>
                     <textarea id="project-description" rows="3" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all"></textarea>
                 </div>
@@ -210,7 +214,108 @@
         </div>
     </div>
 
-    <script src="/static/script.js?v=1.3"></script>
+    <!-- Modal for Finance Management -->
+    <div id="finance-modal" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-8 border border-white/20 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 id="finance-project-name" class="text-2xl font-black text-brand-dark">Project Ledger</h3>
+                    <p id="finance-project-dates" class="text-xs font-bold text-brand-blue uppercase tracking-widest mt-1"></p>
+                </div>
+                <button onclick="closeFinanceModal()" class="text-gray-400 hover:text-brand-red transition-colors">
+                    <i data-lucide="x" class="w-8 h-8"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Left: Summary & Form -->
+                <div class="space-y-6">
+                    <div class="bg-brand-dark/5 p-6 rounded-2xl border border-brand-dark/10">
+                        <h4 class="text-sm font-black text-brand-dark uppercase tracking-widest mb-4">Budget Overview</h4>
+                        <div class="flex justify-between items-end mb-2">
+                            <span class="text-xs font-bold text-gray-500">Spent vs Budget</span>
+                            <span id="finance-budget-percent" class="text-xl font-black text-brand-dark">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3 mb-4">
+                            <div id="finance-budget-bar" class="bg-brand-blue h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <div>
+                                <p class="text-gray-400 font-bold uppercase text-[10px]">Spent</p>
+                                <p id="finance-total-spent" class="font-black text-brand-red">$0.00</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-gray-400 font-bold uppercase text-[10px]">Total</p>
+                                <p id="finance-total-budget" class="font-black text-brand-dark">$0.00</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                        <h4 class="text-sm font-black text-brand-dark uppercase tracking-widest mb-4">Log New Expense</h4>
+                        <form id="expense-form" class="space-y-4">
+                            <input type="hidden" id="finance-project-id">
+                            <div>
+                                <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Item Name</label>
+                                <input type="text" id="expense-name" required class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-2 text-sm outline-none focus:border-brand-blue">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Amount ($)</label>
+                                    <input type="number" id="expense-amount" step="0.01" required class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-2 text-sm outline-none focus:border-brand-blue">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Date</label>
+                                    <input type="date" id="expense-date" required class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-2 text-sm outline-none focus:border-brand-blue">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Upload Receipt Image</label>
+                                <input type="file" id="expense-receipt" accept="image/*" class="block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-black file:bg-brand-blue/10 file:text-brand-blue hover:file:bg-brand-blue/20">
+                            </div>
+                            <button type="submit" class="w-full py-3 bg-brand-dark text-white rounded-xl font-black text-sm hover:bg-brand-blue transition-all shadow-md mt-2">
+                                Add to Ledger
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <button onclick="downloadProjectReport()" class="w-full py-4 border-2 border-brand-blue text-brand-blue rounded-2xl font-black text-sm hover:bg-brand-blue hover:text-white transition-all flex items-center justify-center gap-2">
+                        <i data-lucide="file-text"></i> Generate Full Audit Report
+                    </button>
+                </div>
+
+                <!-- Right: Expense List -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                        <table class="w-full text-left">
+                            <thead class="bg-brand-dark/5">
+                                <tr>
+                                    <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Item</th>
+                                    <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Date</th>
+                                    <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Amount</th>
+                                    <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest text-center">Receipt</th>
+                                    <th class="px-6 py-4"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="expense-list-body" class="divide-y divide-gray-50">
+                                <!-- Expenses will be injected here -->
+                            </tbody>
+                        </table>
+                        <div id="no-expenses-msg" class="hidden p-12 text-center text-gray-400 font-bold">
+                            No items logged yet.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Preview Overlay -->
+    <div id="receipt-preview" class="fixed inset-0 bg-black/90 hidden z-[60] flex items-center justify-center p-4 cursor-zoom-out" onclick="this.classList.add('hidden')">
+        <img id="preview-img" src="" alt="Receipt Preview" class="max-w-full max-h-full rounded-lg shadow-2xl">
+    </div>
+
+    <script src="/static/script.js?v=1.4"></script>
     <script>lucide.createIcons();</script>
 </body>
 </html>
