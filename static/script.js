@@ -94,8 +94,28 @@ function closeModal() {
 }
 
 // Project Modal Logic
-function openProjectModal() {
-    document.getElementById('project-modal').classList.remove('hidden');
+function openProjectModal(project = null) {
+    const modal = document.getElementById('project-modal');
+    const title = document.getElementById('project-modal-title');
+    const submitBtn = document.getElementById('project-submit-btn');
+    const form = document.getElementById('project-form');
+    
+    if (project) {
+        title.textContent = 'Edit Project';
+        submitBtn.textContent = 'Save Changes';
+        document.getElementById('edit-project-id').value = project.id;
+        document.getElementById('project-name').value = project.name;
+        document.getElementById('project-description').value = project.description || '';
+        document.getElementById('project-start-date').value = project.start_date || '';
+        document.getElementById('project-end-date').value = project.end_date || '';
+        document.getElementById('project-budget').value = project.budget || 0;
+    } else {
+        title.textContent = 'Create Project';
+        submitBtn.textContent = 'Create Project';
+        form.reset();
+        document.getElementById('edit-project-id').value = '';
+    }
+    modal.classList.remove('hidden');
 }
 
 function closeProjectModal() {
@@ -103,8 +123,14 @@ function closeProjectModal() {
     document.getElementById('project-form').reset();
 }
 
+function editProject(id) {
+    const project = projects.find(p => p.id === id);
+    if (project) openProjectModal(project);
+}
+
 document.getElementById('project-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const id = document.getElementById('edit-project-id').value;
     const data = {
         name: document.getElementById('project-name').value,
         description: document.getElementById('project-description').value,
@@ -113,9 +139,12 @@ document.getElementById('project-form').addEventListener('submit', async (e) => 
         budget: parseFloat(document.getElementById('project-budget').value) || 0
     };
 
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/api/projects/${id}` : '/api/projects/';
+
     try {
-        const response = await fetch('/api/projects/', {
-            method: 'POST',
+        const response = await fetch(url, {
+            method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
@@ -223,6 +252,7 @@ async function openFinanceModal(projectId) {
     
     document.getElementById('finance-modal').classList.remove('hidden');
     fetchExpenses(projectId);
+    fetchBudgetLogs(projectId);
 }
 
 function closeFinanceModal() {
@@ -239,6 +269,37 @@ async function fetchExpenses(projectId) {
     } catch (error) {
         console.error('Error fetching expenses:', error);
     }
+}
+
+async function fetchBudgetLogs(projectId) {
+    try {
+        const response = await fetch(`/api/projects/${projectId}/budget-logs`);
+        const logs = await response.json();
+        renderBudgetLogs(logs);
+    } catch (error) {
+        console.error('Error fetching budget logs:', error);
+    }
+}
+
+function renderBudgetLogs(logs) {
+    const container = document.getElementById('budget-history-list');
+    container.innerHTML = '';
+    
+    if (logs.length === 0) {
+        container.innerHTML = '<p class="text-[10px] text-gray-400 italic">No budget changes recorded.</p>';
+        return;
+    }
+
+    logs.forEach(log => {
+        const date = new Date(log.change_date).toLocaleString();
+        const div = document.createElement('div');
+        div.className = 'flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100';
+        div.innerHTML = `
+            <span class="text-[10px] font-black text-brand-dark">$${log.amount.toLocaleString()}</span>
+            <span class="text-[9px] text-gray-400 font-bold uppercase">${date}</span>
+        `;
+        container.appendChild(div);
+    });
 }
 
 function renderExpenses(expenses, projectBudget) {
@@ -448,6 +509,9 @@ function renderKanban() {
                             <button onclick="openFinanceModal(${id})" class="bg-brand-blue/10 text-brand-blue hover:bg-brand-blue hover:text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1">
                                 <i data-lucide="dollar-sign" class="w-3 h-3"></i> Finance
                             </button>
+                            <button onclick="editProject(${id})" class="text-gray-400 hover:text-brand-blue p-1 transition-colors" title="Edit Project">
+                                <i data-lucide="settings" class="w-5 h-5"></i>
+                            </button>
                             <button onclick="deleteProject(${id})" class="text-gray-400 hover:text-brand-red p-1 transition-colors" title="Delete Project">
                                 <i data-lucide="trash-2" class="w-5 h-5"></i>
                             </button>
@@ -548,7 +612,7 @@ function createCalendarCell(day, isCurrentMonth, isToday = false) {
     const cell = document.createElement('div');
     cell.className = `min-h-[130px] p-3 bg-white flex flex-col border-r border-b border-gray-50 ${isCurrentMonth ? '' : 'bg-gray-50/50 text-gray-300'}`;
     if (isToday) cell.classList.add('bg-brand-blue/5');
-    cell.innerHTML = `<span class="text-base font-black ${isToday ? 'bg-brand-dark text-white w-8 h-8 flex items-center justify-center rounded-xl shadow-lg' : ''}">${day}</span><div class="event-container mt-2 space-y-1.5 overflow-y-auto max-h-[95px]"></div>`;
+    cell.innerHTML = `<span class="text-sm font-black ${isToday ? 'bg-brand-dark text-white w-8 h-8 flex items-center justify-center rounded-xl shadow-lg' : ''}">${day}</span><div class="event-container mt-2 space-y-1.5 overflow-y-auto max-h-[95px]"></div>`;
     return cell;
 }
 

@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
-from datetime import date
+from datetime import date, datetime
 from pydantic import BaseModel
 import os
 import csv
@@ -35,8 +35,22 @@ class ProjectBase(BaseModel):
 class ProjectCreate(ProjectBase):
     pass
 
+class ProjectUpdate(ProjectBase):
+    pass
+
 class Project(ProjectBase):
     id: int
+
+    class Config:
+        from_attributes = True
+
+class BudgetLogBase(BaseModel):
+    amount: float
+    change_date: datetime
+
+class BudgetLog(BudgetLogBase):
+    id: int
+    project_id: int
 
     class Config:
         from_attributes = True
@@ -81,11 +95,42 @@ def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
     db.add(db_project)
     db.commit()
     db.refresh(db_project)
+    
+    # Log initial budget
+    if db_project.budget > 0:
+        log = models.BudgetLog(amount=db_project.budget, project_id=db_project.id)
+        db.add(log)
+        db.commit()
+        
     return db_project
 
 @app.get("/api/projects/", response_model=List[Project])
 def read_projects(db: Session = Depends(get_db)):
     return db.query(models.Project).all()
+
+@app.put("/api/projects/{project_id}", response_model=Project)
+def update_project(project_id: int, project: ProjectUpdate, db: Session = Depends(get_db)):
+    db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not db_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    update_data = project.model_dump()
+    
+    # Log budget change if amount differs
+    if update_data["budget"] != db_project.budget:
+        log = models.BudgetLog(amount=update_data["budget"], project_id=project_id)
+        db.add(log)
+    
+    for var, value in update_data.items():
+        setattr(db_project, var, value)
+    
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+@app.get("/api/projects/{project_id}/budget-logs", response_model=List[BudgetLog])
+def read_budget_logs(project_id: int, db: Session = Depends(get_db)):
+    return db.query(models.BudgetLog).filter(models.BudgetLog.project_id == project_id).order_by(models.BudgetLog.change_date.desc()).all()
 
 @app.delete("/api/projects/{project_id}")
 def delete_project(project_id: int, db: Session = Depends(get_db)):
@@ -95,6 +140,9 @@ def delete_project(project_id: int, db: Session = Depends(get_db)):
     
     # Unassign all tasks from this project before deleting
     db.query(models.Task).filter(models.Task.project_id == project_id).update({models.Task.project_id: None})
+    
+    # Delete associated budget logs
+    db.query(models.BudgetLog).filter(models.BudgetLog.project_id == project_id).delete()
     
     # Delete associated expenses and their files
     expenses = db.query(models.Expense).filter(models.Expense.project_id == project_id).all()
@@ -192,7 +240,18 @@ def generate_project_report(project_id: int, db: Session = Depends(get_db)):
     pdf.set_text_color(174, 0, 1) if remaining < 0 else pdf.set_text_color(0, 128, 0)
     pdf.cell(0, 10, f"Remaining Balance: ${remaining:,.2f}", 0, 1)
     pdf.set_text_color(56, 56, 56)
-    pdf.ln(10)
+    pdf.ln(5)
+
+    # Budget History
+    logs = db.query(models.BudgetLog).filter(models.BudgetLog.project_id == project_id).order_by(models.BudgetLog.change_date.asc()).all()
+    if logs:
+        pdf.set_font("helvetica", "B", 10)
+        pdf.cell(0, 10, "Budget Revision History:", ln=True)
+        pdf.set_font("helvetica", "I", 9)
+        for log in logs:
+            pdf.cell(0, 8, f" - Set to ${log.amount:,.2f} on {log.change_date.strftime('%Y-%m-%d %H:%M')}", ln=True)
+    
+    pdf.ln(5)
     
     # Expense Table
     pdf.set_fill_color(28, 80, 112)

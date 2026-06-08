@@ -174,16 +174,17 @@
         </div>
     </div>
 
-    <!-- Modal for Adding Projects -->
+    <!-- Modal for Adding/Editing Projects -->
     <div id="project-modal" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 border border-white/20">
             <div class="flex justify-between items-center mb-6">
-                <h3 class="text-2xl font-black text-brand-dark">Create Project</h3>
+                <h3 id="project-modal-title" class="text-2xl font-black text-brand-dark">Create Project</h3>
                 <button onclick="closeProjectModal()" class="text-gray-400 hover:text-brand-red transition-colors">
                     <i data-lucide="x" class="w-8 h-8"></i>
                 </button>
             </div>
             <form id="project-form" class="space-y-5">
+                <input type="hidden" id="edit-project-id">
                 <div>
                     <label class="block text-sm font-bold text-brand-dark mb-1">Project Name</label>
                     <input type="text" id="project-name" required class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
@@ -208,7 +209,7 @@
                 </div>
                 <div class="flex justify-end gap-3 mt-8">
                     <button type="button" onclick="closeProjectModal()" class="px-6 py-2.5 text-gray-500 font-bold hover:text-brand-red transition-colors">Cancel</button>
-                    <button type="submit" class="px-8 py-2.5 bg-brand-dark text-white rounded-xl font-black hover:bg-brand-blue transition-all shadow-lg">Create Project</button>
+                    <button type="submit" id="project-submit-btn" class="px-8 py-2.5 bg-brand-dark text-white rounded-xl font-black hover:bg-brand-blue transition-all shadow-lg">Create Project</button>
                 </div>
             </form>
         </div>
@@ -278,6 +279,13 @@
                             </button>
                         </form>
                     </div>
+
+                    <div class="border-t border-gray-100 pt-4 mt-2">
+                        <h4 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Budget History</h4>
+                        <div id="budget-history-list" class="space-y-2 max-h-[150px] overflow-y-auto">
+                            <!-- Logs will be injected here -->
+                        </div>
+                    </div>
                     
                     <button onclick="downloadProjectReport()" class="w-full py-4 border-2 border-brand-blue text-brand-blue rounded-2xl font-black text-sm hover:bg-brand-blue hover:text-white transition-all flex items-center justify-center gap-2">
                         <i data-lucide="file-text"></i> Generate Full Audit Report
@@ -315,7 +323,7 @@
         <img id="preview-img" src="" alt="Receipt Preview" class="max-w-full max-h-full rounded-lg shadow-2xl">
     </div>
 
-    <script src="/static/script.js?v=1.4"></script>
+    <script src="/static/script.js?v=1.5"></script>
     <script>lucide.createIcons();</script>
 </body>
 </html>
