@@ -8,7 +8,7 @@ venv/
 ENV/
 
 # Database
-planning.db
+planning.db*
 
 # IDEs
 .vscode/
