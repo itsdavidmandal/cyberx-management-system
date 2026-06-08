@@ -107,7 +107,9 @@ document.getElementById('project-form').addEventListener('submit', async (e) => 
     e.preventDefault();
     const data = {
         name: document.getElementById('project-name').value,
-        description: document.getElementById('project-description').value
+        description: document.getElementById('project-description').value,
+        start_date: document.getElementById('project-start-date').value || null,
+        end_date: document.getElementById('project-end-date').value || null
     };
 
     try {
@@ -164,6 +166,47 @@ async function toggleTask(taskId) {
     }
 }
 
+// Drag & Drop Handlers
+function handleDragStart(e, taskId) {
+    e.dataTransfer.setData('text/plain', taskId);
+    e.currentTarget.classList.add('opacity-40');
+}
+
+function handleDragEnd(e) {
+    e.currentTarget.classList.remove('opacity-40');
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    const lane = e.currentTarget;
+    lane.classList.add('bg-brand-blue/5');
+}
+
+function handleDragLeave(e) {
+    const lane = e.currentTarget;
+    lane.classList.remove('bg-brand-blue/5');
+}
+
+async function handleDrop(e, newStatus) {
+    e.preventDefault();
+    const lane = e.currentTarget;
+    lane.classList.remove('bg-brand-blue/5');
+    
+    const taskId = e.dataTransfer.getData('text/plain');
+    if (!taskId) return;
+
+    try {
+        const response = await fetch(`/api/events/${taskId}/status?status=${encodeURIComponent(newStatus)}`, {
+            method: 'PATCH'
+        });
+        if (response.ok) {
+            fetchData();
+        }
+    } catch (error) {
+        console.error('Error updating task status:', error);
+    }
+}
+
 function calculateDaysLeft(dateStr) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -188,10 +231,10 @@ function createTaskCard(t) {
                 <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTask(${t.id})" class="w-5 h-5 rounded border-gray-300 text-brand-dark focus:ring-brand-blue cursor-pointer">
                 <h3 class="text-xl font-black text-brand-dark ${t.completed ? 'line-through text-gray-400' : ''}">${t.title}</h3>
             </div>
-            <span class="px-2 py-1 ${statusColor} text-[10px] font-black uppercase tracking-wider rounded">${t.status}</span>
+            <span class="px-2 py-1 ${statusColor} text-xs font-black uppercase tracking-wider rounded">${t.status}</span>
         </div>
-        <p class="text-gray-500 mb-6 text-sm leading-relaxed">${t.description || 'No description provided'}</p>
-        <div class="flex justify-between items-center text-xs font-bold text-gray-400 uppercase tracking-widest">
+        <p class="text-gray-500 mb-6 text-base leading-relaxed">${t.description || 'No description provided'}</p>
+        <div class="flex justify-between items-center text-sm font-bold text-gray-400 uppercase tracking-widest">
             <div class="flex items-center gap-1.5">
                 <i data-lucide="clock" class="w-4 h-4"></i>
                 <span>${daysLeft < 0 ? 'Past' : daysLeft === 0 ? 'Today' : daysLeft + ' days left'}</span>
@@ -202,8 +245,8 @@ function createTaskCard(t) {
             </div>
         </div>
         <div class="mt-6 pt-4 border-t border-gray-50 flex justify-end gap-4">
-            <button onclick="editTask(${t.id})" class="text-brand-blue hover:text-brand-dark font-black transition-colors uppercase text-[10px]">Edit</button>
-            <button onclick="deleteTask(${t.id})" class="text-brand-red hover:text-red-800 font-black transition-colors uppercase text-[10px]">Delete</button>
+            <button onclick="editTask(${t.id})" class="text-brand-blue hover:text-brand-dark font-black transition-colors uppercase text-xs">Edit</button>
+            <button onclick="deleteTask(${t.id})" class="text-brand-red hover:text-red-800 font-black transition-colors uppercase text-xs">Delete</button>
         </div>
     `;
     return card;
@@ -232,8 +275,8 @@ function renderDashboard() {
         }
     });
 
-    if (monthlyList.children.length === 0) monthlyList.innerHTML = '<p class="text-gray-400 col-span-full py-12 text-center bg-white rounded-2xl border-2 border-dashed border-gray-100 font-bold">No confirmed tasks for this month.</p>';
-    if (ideationList.children.length === 0) ideationList.innerHTML = '<p class="text-gray-400 col-span-full py-12 text-center bg-white rounded-2xl border-2 border-dashed border-gray-100 font-bold">No ideation tasks found.</p>';
+    if (monthlyList.children.length === 0) monthlyList.innerHTML = '<p class="text-gray-400 col-span-full py-12 text-center bg-white rounded-2xl border-2 border-dashed border-gray-100 font-bold text-lg">No confirmed tasks for this month.</p>';
+    if (ideationList.children.length === 0) ideationList.innerHTML = '<p class="text-gray-400 col-span-full py-12 text-center bg-white rounded-2xl border-2 border-dashed border-gray-100 font-bold text-lg">No ideation tasks found.</p>';
     
     lucide.createIcons();
 }
@@ -253,19 +296,35 @@ function renderKanban() {
     Object.entries(groups).forEach(([id, group]) => {
         if (group.tasks.length === 0 && id === 'null') return;
 
+        const project = projects.find(p => p.id == id) || { name: 'Unassigned' };
+        const dateDisplay = project.start_date && project.end_date 
+            ? `<span class="text-[10px] font-black text-brand-blue uppercase tracking-widest bg-brand-blue/10 px-2 py-1 rounded ml-2">${project.start_date} → ${project.end_date}</span>`
+            : '';
+
         const swimlane = document.createElement('div');
         swimlane.className = 'bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden';
         swimlane.innerHTML = `
             <div class="bg-brand-dark/5 px-8 py-5 border-b border-gray-100 flex justify-between items-center">
-                <h3 class="text-xl font-black text-brand-dark flex items-center gap-3">
-                    <i data-lucide="layers" class="w-6 h-6 text-brand-blue"></i> ${group.name}
-                </h3>
-                <span class="bg-brand-dark text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">${group.tasks.length} tasks</span>
+                <div class="flex items-center gap-3">
+                    <h3 class="text-2xl font-black text-brand-dark flex items-center gap-3">
+                        <i data-lucide="layers" class="w-7 h-7 text-brand-blue"></i> ${group.name}
+                    </h3>
+                    ${dateDisplay}
+                    ${id !== 'null' ? `
+                        <button onclick="deleteProject(${id})" class="text-gray-400 hover:text-brand-red p-1 transition-colors" title="Delete Project">
+                            <i data-lucide="trash-2" class="w-5 h-5"></i>
+                        </button>
+                    ` : ''}
+                </div>
+                <span class="bg-brand-dark text-white px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest">${group.tasks.length} tasks</span>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-0 divide-x divide-gray-50">
                 ${['Ideation', 'To-Do', 'In Progress', 'Done'].map(status => `
-                    <div class="p-6 min-h-[250px] bg-white">
-                        <h4 class="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] mb-6">${status}</h4>
+                    <div class="p-6 min-h-[250px] bg-white transition-colors" 
+                         ondragover="handleDragOver(event)" 
+                         ondragleave="handleDragLeave(event)" 
+                         ondrop="handleDrop(event, '${status}')">
+                        <h4 class="text-xs font-black text-gray-300 uppercase tracking-[0.2em] mb-6">${status}</h4>
                         <div id="lane-${id}-${status.replace(' ', '-')}" class="space-y-4"></div>
                     </div>
                 `).join('')}
@@ -279,6 +338,9 @@ function renderKanban() {
             if (lane) {
                 const card = document.createElement('div');
                 card.className = `bg-gray-50 p-5 rounded-2xl border-l-4 cursor-pointer hover:bg-white hover:shadow-lg transition-all ${t.completed ? 'opacity-50' : ''}`;
+                card.setAttribute('draggable', 'true');
+                card.addEventListener('dragstart', (e) => handleDragStart(e, t.id));
+                card.addEventListener('dragend', handleDragEnd);
                 
                 const statusClean = t.status.toLowerCase();
                 if (statusClean === 'ideation') card.classList.add('border-brand-red');
@@ -289,11 +351,11 @@ function renderKanban() {
                 card.innerHTML = `
                     <div class="flex items-start gap-3">
                         <input type="checkbox" ${t.completed ? 'checked' : ''} onclick="event.stopPropagation(); toggleTask(${t.id})" class="mt-1 w-4 h-4 rounded border-gray-300 text-brand-dark focus:ring-brand-blue">
-                        <h4 class="font-bold text-brand-dark text-sm leading-tight ${t.completed ? 'line-through text-gray-400' : ''}">${t.title}</h4>
+                        <h4 class="font-bold text-brand-dark text-base leading-tight ${t.completed ? 'line-through text-gray-400' : ''}">${t.title}</h4>
                     </div>
                     <div class="flex justify-between items-center mt-4">
-                        <p class="text-[9px] text-gray-400 uppercase font-black tracking-widest">${t.date}</p>
-                        <p class="text-[10px] font-black text-brand-dark">$${t.budget.toLocaleString()}</p>
+                        <p class="text-[10px] text-gray-400 uppercase font-black tracking-widest">${t.date}</p>
+                        <p class="text-sm font-black text-brand-dark">$${t.budget.toLocaleString()}</p>
                     </div>
                 `;
                 card.onclick = () => editTask(t.id);
@@ -329,7 +391,7 @@ function renderCalendar() {
         tasks.filter(t => t.date === dateString).forEach(t => {
             const pill = document.createElement('div');
             const pillColor = isIdeation(t.status) ? 'bg-brand-red text-white' : 'bg-brand-blue text-white';
-            pill.className = `mt-1.5 px-2 py-1 ${pillColor} text-[9px] font-black uppercase tracking-wider rounded-md truncate cursor-pointer hover:opacity-80 transition-opacity ${t.completed ? 'line-through opacity-40' : ''}`;
+            pill.className = `mt-1.5 px-2.5 py-1.5 ${pillColor} text-[10px] font-black uppercase tracking-wider rounded-md truncate cursor-pointer hover:opacity-80 transition-opacity ${t.completed ? 'line-through opacity-40' : ''}`;
             pill.innerText = t.title;
             pill.onclick = (e) => { e.stopPropagation(); editTask(t.id); };
             cell.querySelector('.event-container').appendChild(pill);
@@ -346,15 +408,24 @@ function renderCalendar() {
 
 function createCalendarCell(day, isCurrentMonth, isToday = false) {
     const cell = document.createElement('div');
-    cell.className = `min-h-[120px] p-3 bg-white flex flex-col border-r border-b border-gray-50 ${isCurrentMonth ? '' : 'bg-gray-50/50 text-gray-300'}`;
+    cell.className = `min-h-[130px] p-3 bg-white flex flex-col border-r border-b border-gray-50 ${isCurrentMonth ? '' : 'bg-gray-50/50 text-gray-300'}`;
     if (isToday) cell.classList.add('bg-brand-blue/5');
-    cell.innerHTML = `<span class="text-sm font-black ${isToday ? 'bg-brand-dark text-white w-7 h-7 flex items-center justify-center rounded-xl shadow-lg' : ''}">${day}</span><div class="event-container mt-2 space-y-1 overflow-y-auto max-h-[90px]"></div>`;
+    cell.innerHTML = `<span class="text-base font-black ${isToday ? 'bg-brand-dark text-white w-8 h-8 flex items-center justify-center rounded-xl shadow-lg' : ''}">${day}</span><div class="event-container mt-2 space-y-1.5 overflow-y-auto max-h-[95px]"></div>`;
     return cell;
 }
 
 function editTask(id) {
     const task = tasks.find(t => t.id === id);
     if (task) openModal(task);
+}
+
+async function deleteProject(id) {
+    if (confirm('Permanently delete this project? All tasks within it will become "Unassigned".')) {
+        try {
+            const response = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+            if (response.ok) fetchData();
+        } catch (error) { console.error('Error deleting project:', error); }
+    }
 }
 
 async function deleteTask(id) {

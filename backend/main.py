@@ -22,6 +22,8 @@ app = FastAPI(title="Planning API")
 class ProjectBase(BaseModel):
     name: str
     description: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
 
 class ProjectCreate(ProjectBase):
     pass
@@ -70,9 +72,13 @@ def delete_project(project_id: int, db: Session = Depends(get_db)):
     db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if db_project is None:
         raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Unassign all tasks from this project before deleting
+    db.query(models.Task).filter(models.Task.project_id == project_id).update({models.Task.project_id: None})
+    
     db.delete(db_project)
     db.commit()
-    return {"message": "Project deleted"}
+    return {"message": "Project deleted and tasks unassigned"}
 
 # Tasks (Mapped to /api/events/ for frontend compatibility)
 @app.post("/api/events/", response_model=Task)
@@ -169,6 +175,22 @@ def toggle_task_completion(task_id: int, db: Session = Depends(get_db)):
     if db_task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     db_task.completed = not db_task.completed
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+@app.patch("/api/events/{task_id}/status")
+def update_task_status(task_id: int, status: str, db: Session = Depends(get_db)):
+    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if db_task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Normalize status string
+    status = status.strip().title()
+    if status == "In Progress":
+        status = "In Progress"
+    
+    db_task.status = status
     db.commit()
     db.refresh(db_task)
     return db_task

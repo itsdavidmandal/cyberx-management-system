@@ -8,6 +8,8 @@ class Project(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     description = Column(Text)
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
 
     tasks = relationship("Task", back_populates="project")
 
