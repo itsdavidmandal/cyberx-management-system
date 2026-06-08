@@ -176,33 +176,34 @@ function createTaskCard(t) {
     const daysLeft = calculateDaysLeft(t.date);
     const card = document.createElement('div');
     const ideation = isIdeation(t.status);
-    const statusColor = ideation ? 'bg-yellow-100 text-yellow-700' : 'bg-indigo-100 text-indigo-700';
-    const borderColor = ideation ? 'border-yellow-400' : 'border-indigo-500';
     
-    card.className = `bg-white p-6 rounded-lg shadow-md border-t-4 ${borderColor} hover:shadow-lg transition-shadow relative ${t.completed ? 'opacity-75' : ''}`;
+    const statusColor = ideation ? 'bg-brand-red/10 text-brand-red' : 'bg-brand-blue/10 text-brand-blue';
+    const borderColor = ideation ? 'border-brand-red' : 'border-brand-dark';
+    
+    card.className = `bg-white p-6 rounded-2xl shadow-lg border-t-4 ${borderColor} hover:shadow-xl transition-all relative ${t.completed ? 'opacity-75' : ''}`;
     
     card.innerHTML = `
         <div class="flex justify-between items-start mb-4">
             <div class="flex items-center gap-3">
-                <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTask(${t.id})" class="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
-                <h3 class="text-xl font-bold ${t.completed ? 'line-through text-gray-400' : ''}">${t.title}</h3>
+                <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTask(${t.id})" class="w-5 h-5 rounded border-gray-300 text-brand-dark focus:ring-brand-blue cursor-pointer">
+                <h3 class="text-xl font-black text-brand-dark ${t.completed ? 'line-through text-gray-400' : ''}">${t.title}</h3>
             </div>
-            <span class="px-2 py-1 ${statusColor} text-xs font-semibold rounded">${t.status}</span>
+            <span class="px-2 py-1 ${statusColor} text-[10px] font-black uppercase tracking-wider rounded">${t.status}</span>
         </div>
-        <p class="text-gray-600 mb-4 text-sm line-clamp-2">${t.description || 'No description'}</p>
-        <div class="flex justify-between items-center text-sm text-gray-500">
-            <div class="flex items-center gap-1">
+        <p class="text-gray-500 mb-6 text-sm leading-relaxed">${t.description || 'No description provided'}</p>
+        <div class="flex justify-between items-center text-xs font-bold text-gray-400 uppercase tracking-widest">
+            <div class="flex items-center gap-1.5">
                 <i data-lucide="clock" class="w-4 h-4"></i>
                 <span>${daysLeft < 0 ? 'Past' : daysLeft === 0 ? 'Today' : daysLeft + ' days left'}</span>
             </div>
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1.5">
                 <i data-lucide="dollar-sign" class="w-4 h-4"></i>
                 <span>${t.budget.toLocaleString()}</span>
             </div>
         </div>
-        <div class="mt-4 pt-4 border-t flex justify-end gap-2">
-            <button onclick="editTask(${t.id})" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</button>
-            <button onclick="deleteTask(${t.id})" class="text-red-600 hover:text-red-800 text-sm font-medium">Delete</button>
+        <div class="mt-6 pt-4 border-t border-gray-50 flex justify-end gap-4">
+            <button onclick="editTask(${t.id})" class="text-brand-blue hover:text-brand-dark font-black transition-colors uppercase text-[10px]">Edit</button>
+            <button onclick="deleteTask(${t.id})" class="text-brand-red hover:text-red-800 font-black transition-colors uppercase text-[10px]">Delete</button>
         </div>
     `;
     return card;
@@ -231,8 +232,8 @@ function renderDashboard() {
         }
     });
 
-    if (monthlyList.children.length === 0) monthlyList.innerHTML = '<p class="text-gray-500 col-span-full py-4 text-center">No tasks confirmed for this month.</p>';
-    if (ideationList.children.length === 0) ideationList.innerHTML = '<p class="text-gray-500 col-span-full py-4 text-center">No ideation tasks yet.</p>';
+    if (monthlyList.children.length === 0) monthlyList.innerHTML = '<p class="text-gray-400 col-span-full py-12 text-center bg-white rounded-2xl border-2 border-dashed border-gray-100 font-bold">No confirmed tasks for this month.</p>';
+    if (ideationList.children.length === 0) ideationList.innerHTML = '<p class="text-gray-400 col-span-full py-12 text-center bg-white rounded-2xl border-2 border-dashed border-gray-100 font-bold">No ideation tasks found.</p>';
     
     lucide.createIcons();
 }
@@ -242,7 +243,6 @@ function renderKanban() {
     if (!container) return;
     container.innerHTML = '';
 
-    // Group tasks by project
     const groups = { null: { name: 'Unassigned', tasks: [] } };
     projects.forEach(p => groups[p.id] = { name: p.name, tasks: [] });
     tasks.forEach(t => {
@@ -251,22 +251,22 @@ function renderKanban() {
     });
 
     Object.entries(groups).forEach(([id, group]) => {
-        if (group.tasks.length === 0 && id === 'null') return; // Skip empty unassigned
+        if (group.tasks.length === 0 && id === 'null') return;
 
         const swimlane = document.createElement('div');
-        swimlane.className = 'bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden';
+        swimlane.className = 'bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden';
         swimlane.innerHTML = `
-            <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                <h3 class="text-lg font-bold text-gray-700 flex items-center gap-2">
-                    <i data-lucide="folder" class="w-5 h-5 text-indigo-500"></i> ${group.name}
+            <div class="bg-brand-dark/5 px-8 py-5 border-b border-gray-100 flex justify-between items-center">
+                <h3 class="text-xl font-black text-brand-dark flex items-center gap-3">
+                    <i data-lucide="layers" class="w-6 h-6 text-brand-blue"></i> ${group.name}
                 </h3>
-                <span class="text-sm text-gray-500">${group.tasks.length} tasks</span>
+                <span class="bg-brand-dark text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">${group.tasks.length} tasks</span>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-0 divide-x divide-gray-100">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-0 divide-x divide-gray-50">
                 ${['Ideation', 'To-Do', 'In Progress', 'Done'].map(status => `
-                    <div class="p-4 min-h-[200px] bg-gray-50/30">
-                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">${status}</h4>
-                        <div id="lane-${id}-${status.replace(' ', '-')}" class="space-y-3"></div>
+                    <div class="p-6 min-h-[250px] bg-white">
+                        <h4 class="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] mb-6">${status}</h4>
+                        <div id="lane-${id}-${status.replace(' ', '-')}" class="space-y-4"></div>
                     </div>
                 `).join('')}
             </div>
@@ -278,22 +278,22 @@ function renderKanban() {
             const lane = document.getElementById(laneId);
             if (lane) {
                 const card = document.createElement('div');
-                card.className = `bg-white p-4 rounded shadow-sm border-l-4 cursor-pointer hover:bg-gray-50 transition-colors ${t.completed ? 'opacity-60' : ''}`;
+                card.className = `bg-gray-50 p-5 rounded-2xl border-l-4 cursor-pointer hover:bg-white hover:shadow-lg transition-all ${t.completed ? 'opacity-50' : ''}`;
                 
                 const statusClean = t.status.toLowerCase();
-                if (statusClean === 'ideation') card.classList.add('border-yellow-400');
-                else if (statusClean === 'in progress') card.classList.add('border-blue-400');
-                else if (statusClean === 'done') card.classList.add('border-green-400');
-                else card.classList.add('border-gray-300');
+                if (statusClean === 'ideation') card.classList.add('border-brand-red');
+                else if (statusClean === 'in progress') card.classList.add('border-brand-blue');
+                else if (statusClean === 'done') card.classList.add('border-brand-dark');
+                else card.classList.add('border-gray-200');
 
                 card.innerHTML = `
-                    <div class="flex items-start gap-2">
-                        <input type="checkbox" ${t.completed ? 'checked' : ''} onclick="event.stopPropagation(); toggleTask(${t.id})" class="mt-1 w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                        <h4 class="font-semibold text-gray-800 leading-tight ${t.completed ? 'line-through text-gray-400' : ''}">${t.title}</h4>
+                    <div class="flex items-start gap-3">
+                        <input type="checkbox" ${t.completed ? 'checked' : ''} onclick="event.stopPropagation(); toggleTask(${t.id})" class="mt-1 w-4 h-4 rounded border-gray-300 text-brand-dark focus:ring-brand-blue">
+                        <h4 class="font-bold text-brand-dark text-sm leading-tight ${t.completed ? 'line-through text-gray-400' : ''}">${t.title}</h4>
                     </div>
-                    <div class="flex justify-between items-center mt-3">
-                        <p class="text-[10px] text-gray-500 uppercase font-medium tracking-tighter">${t.date}</p>
-                        <p class="text-xs font-bold text-gray-700">$${t.budget.toLocaleString()}</p>
+                    <div class="flex justify-between items-center mt-4">
+                        <p class="text-[9px] text-gray-400 uppercase font-black tracking-widest">${t.date}</p>
+                        <p class="text-[10px] font-black text-brand-dark">$${t.budget.toLocaleString()}</p>
                     </div>
                 `;
                 card.onclick = () => editTask(t.id);
@@ -328,8 +328,8 @@ function renderCalendar() {
         
         tasks.filter(t => t.date === dateString).forEach(t => {
             const pill = document.createElement('div');
-            const pillColor = isIdeation(t.status) ? 'bg-yellow-100 text-yellow-700' : 'bg-indigo-100 text-indigo-700';
-            pill.className = `mt-1 px-2 py-0.5 ${pillColor} text-[10px] font-medium rounded truncate cursor-pointer hover:opacity-80 ${t.completed ? 'line-through opacity-60' : ''}`;
+            const pillColor = isIdeation(t.status) ? 'bg-brand-red text-white' : 'bg-brand-blue text-white';
+            pill.className = `mt-1.5 px-2 py-1 ${pillColor} text-[9px] font-black uppercase tracking-wider rounded-md truncate cursor-pointer hover:opacity-80 transition-opacity ${t.completed ? 'line-through opacity-40' : ''}`;
             pill.innerText = t.title;
             pill.onclick = (e) => { e.stopPropagation(); editTask(t.id); };
             cell.querySelector('.event-container').appendChild(pill);
@@ -346,9 +346,9 @@ function renderCalendar() {
 
 function createCalendarCell(day, isCurrentMonth, isToday = false) {
     const cell = document.createElement('div');
-    cell.className = `min-h-[100px] p-2 bg-white flex flex-col border-r border-b border-gray-100 ${isCurrentMonth ? '' : 'bg-gray-50 text-gray-400'}`;
-    if (isToday) cell.classList.add('bg-indigo-50');
-    cell.innerHTML = `<span class="text-sm font-semibold ${isToday ? 'bg-indigo-600 text-white w-6 h-6 flex items-center justify-center rounded-full' : ''}">${day}</span><div class="event-container mt-1 space-y-1 overflow-y-auto max-h-[80px]"></div>`;
+    cell.className = `min-h-[120px] p-3 bg-white flex flex-col border-r border-b border-gray-50 ${isCurrentMonth ? '' : 'bg-gray-50/50 text-gray-300'}`;
+    if (isToday) cell.classList.add('bg-brand-blue/5');
+    cell.innerHTML = `<span class="text-sm font-black ${isToday ? 'bg-brand-dark text-white w-7 h-7 flex items-center justify-center rounded-xl shadow-lg' : ''}">${day}</span><div class="event-container mt-2 space-y-1 overflow-y-auto max-h-[90px]"></div>`;
     return cell;
 }
 
@@ -358,7 +358,7 @@ function editTask(id) {
 }
 
 async function deleteTask(id) {
-    if (confirm('Delete this task?')) {
+    if (confirm('Permanently delete this task?')) {
         try {
             const response = await fetch(`/api/events/${id}`, { method: 'DELETE' });
             if (response.ok) fetchData();

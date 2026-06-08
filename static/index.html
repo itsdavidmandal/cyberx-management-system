@@ -5,20 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Planning - Event Manager</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            dark: '#1c5070',
+                            red: '#ae0001',
+                            blue: '#44a6cc',
+                            gray: '#383838',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="bg-gray-50 text-gray-900 font-sans">
-    <nav class="bg-indigo-600 text-white shadow-lg p-4">
+<body class="bg-gray-50 text-brand-gray font-sans">
+    <nav class="bg-brand-dark text-white shadow-lg p-3">
         <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-bold flex items-center gap-2">
-                <i data-lucide="calendar"></i> Planning
-            </h1>
-            <div class="flex gap-4">
-                <button onclick="showView('dashboard')" class="hover:underline">Dashboard</button>
-                <button onclick="showView('calendar')" class="hover:underline">Calendar</button>
-                <button onclick="showView('kanban')" class="hover:underline">Kanban</button>
-                <button onclick="openModal()" class="bg-white text-indigo-600 px-4 py-1 rounded font-semibold hover:bg-indigo-50">Add Task</button>
+            <div class="flex items-center gap-4">
+                <img src="/static/assets/logo.jpeg" alt="Logo" class="w-10 h-10 rounded-full border-2 border-brand-blue object-cover">
+                <h1 class="text-2xl font-bold flex items-center gap-2">
+                    Planning
+                </h1>
+            </div>
+            <div class="flex gap-6 items-center">
+                <div class="flex gap-4">
+                    <button onclick="showView('dashboard')" class="hover:text-brand-blue transition-colors font-medium">Dashboard</button>
+                    <button onclick="showView('calendar')" class="hover:text-brand-blue transition-colors font-medium">Calendar</button>
+                    <button onclick="showView('kanban')" class="hover:text-brand-blue transition-colors font-medium">Kanban</button>
+                </div>
+                <button onclick="openModal()" class="bg-white text-brand-dark px-4 py-1.5 rounded-lg font-bold hover:bg-brand-blue hover:text-white transition-all shadow-md">
+                    + Add Task
+                </button>
             </div>
         </div>
     </nav>
@@ -27,15 +50,15 @@
         <!-- Dashboard View -->
         <section id="dashboard" class="view">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-3xl font-bold">This Month</h2>
+                <h2 class="text-3xl font-extrabold text-brand-dark">This Month</h2>
                 <div class="flex gap-2">
-                    <button onclick="openProjectModal()" class="flex items-center gap-2 bg-indigo-100 text-indigo-700 px-4 py-2 rounded shadow-sm hover:bg-indigo-200 transition-colors font-medium">
+                    <button onclick="openProjectModal()" class="flex items-center gap-2 bg-brand-blue/10 text-brand-blue px-4 py-2 rounded-lg shadow-sm hover:bg-brand-blue/20 transition-colors font-bold border border-brand-blue/20">
                         <i data-lucide="plus-circle"></i> New Project
                     </button>
-                    <button onclick="exportCSV()" class="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded shadow-sm hover:bg-gray-50 transition-colors">
+                    <button onclick="exportCSV()" class="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 transition-colors">
                         <i data-lucide="download"></i> CSV
                     </button>
-                    <button onclick="exportPDF()" class="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded shadow-sm hover:bg-gray-50 transition-colors">
+                    <button onclick="exportPDF()" class="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 transition-colors">
                         <i data-lucide="file-text"></i> PDF
                     </button>
                 </div>
@@ -44,9 +67,9 @@
                 <!-- Cards will be injected here -->
             </div>
 
-            <div class="border-t pt-8">
-                <h2 class="text-3xl font-bold mb-6 flex items-center gap-2">
-                    <i data-lucide="lightbulb" class="text-yellow-500"></i> Ideation Zone
+            <div class="border-t border-gray-200 pt-8">
+                <h2 class="text-3xl font-extrabold text-brand-dark mb-6 flex items-center gap-2">
+                    <i data-lucide="lightbulb" class="text-brand-red"></i> Ideation Zone
                 </h2>
                 <div id="ideation-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <!-- Ideation cards will be injected here -->
@@ -57,29 +80,29 @@
         <!-- Calendar View -->
         <section id="calendar" class="view hidden">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-3xl font-bold">Calendar</h2>
-                <div class="flex items-center gap-4 bg-white shadow rounded-lg p-2">
-                    <button onclick="changeMonth(-1)" class="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <h2 class="text-3xl font-extrabold text-brand-dark">Calendar</h2>
+                <div class="flex items-center gap-4 bg-white shadow-md rounded-xl p-2 border border-gray-100">
+                    <button onclick="changeMonth(-1)" class="p-2 hover:bg-gray-100 rounded-full transition-colors text-brand-dark">
                         <i data-lucide="chevron-left"></i>
                     </button>
-                    <span id="current-month-display" class="text-lg font-semibold min-w-[150px] text-center">Month Year</span>
-                    <button onclick="changeMonth(1)" class="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                    <span id="current-month-display" class="text-lg font-bold min-w-[180px] text-center text-brand-dark">Month Year</span>
+                    <button onclick="changeMonth(1)" class="p-2 hover:bg-gray-100 rounded-full transition-colors text-brand-dark">
                         <i data-lucide="chevron-right"></i>
                     </button>
                 </div>
             </div>
             
-            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
-                <div class="grid grid-cols-7 bg-gray-100 border-b border-gray-200">
-                    <div class="p-3 text-center text-xs font-bold text-gray-500 uppercase">Sun</div>
-                    <div class="p-3 text-center text-xs font-bold text-gray-500 uppercase">Mon</div>
-                    <div class="p-3 text-center text-xs font-bold text-gray-500 uppercase">Tue</div>
-                    <div class="p-3 text-center text-xs font-bold text-gray-500 uppercase">Wed</div>
-                    <div class="p-3 text-center text-xs font-bold text-gray-500 uppercase">Thu</div>
-                    <div class="p-3 text-center text-xs font-bold text-gray-500 uppercase">Fri</div>
-                    <div class="p-3 text-center text-xs font-bold text-gray-500 uppercase">Sat</div>
+            <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
+                <div class="grid grid-cols-7 bg-brand-dark/5 border-b border-gray-200">
+                    <div class="p-4 text-center text-xs font-black text-brand-dark/60 uppercase tracking-widest">Sun</div>
+                    <div class="p-4 text-center text-xs font-black text-brand-dark/60 uppercase tracking-widest">Mon</div>
+                    <div class="p-4 text-center text-xs font-black text-brand-dark/60 uppercase tracking-widest">Tue</div>
+                    <div class="p-4 text-center text-xs font-black text-brand-dark/60 uppercase tracking-widest">Wed</div>
+                    <div class="p-4 text-center text-xs font-black text-brand-dark/60 uppercase tracking-widest">Thu</div>
+                    <div class="p-4 text-center text-xs font-black text-brand-dark/60 uppercase tracking-widest">Fri</div>
+                    <div class="p-4 text-center text-xs font-black text-brand-dark/60 uppercase tracking-widest">Sat</div>
                 </div>
-                <div id="calendar-grid" class="grid grid-cols-7 divide-x divide-y divide-gray-200">
+                <div id="calendar-grid" class="grid grid-cols-7 divide-x divide-y divide-gray-100">
                     <!-- Days will be injected here -->
                 </div>
             </div>
@@ -88,8 +111,8 @@
         <!-- Kanban View -->
         <section id="kanban" class="view hidden">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-3xl font-bold">Kanban Board</h2>
-                <button onclick="openProjectModal()" class="bg-indigo-600 text-white px-4 py-2 rounded font-semibold hover:bg-indigo-700 flex items-center gap-2">
+                <h2 class="text-3xl font-extrabold text-brand-dark">Kanban Board</h2>
+                <button onclick="openProjectModal()" class="bg-brand-dark text-white px-6 py-2.5 rounded-lg font-bold hover:bg-brand-blue transition-all flex items-center gap-2 shadow-lg">
                     <i data-lucide="plus-circle"></i> New Project
                 </button>
             </div>
@@ -100,85 +123,84 @@
     </main>
 
     <!-- Modal for Adding/Editing Tasks -->
-    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 id="modal-title" class="text-xl font-bold">Add New Task</h3>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
-                    <i data-lucide="x"></i>
+    <div id="modal" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 border border-white/20">
+            <div class="flex justify-between items-center mb-6">
+                <h3 id="modal-title" class="text-2xl font-black text-brand-dark">Add New Task</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-brand-red transition-colors">
+                    <i data-lucide="x" class="w-8 h-8"></i>
                 </button>
             </div>
-            <form id="event-form" class="space-y-4">
+            <form id="event-form" class="space-y-5">
                 <input type="hidden" id="event-id">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Title</label>
-                    <input type="text" id="title" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Title</label>
+                    <input type="text" id="title" required class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Project</label>
-                    <select id="project-id-select" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Project</label>
+                    <select id="project-id-select" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
                         <option value="">Unassigned</option>
-                        <!-- Project options will be injected here -->
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Description</label>
-                    <textarea id="description" rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Description</label>
+                    <textarea id="description" rows="3" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all"></textarea>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Date</label>
-                        <input type="date" id="date" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <label class="block text-sm font-bold text-brand-dark mb-1">Date</label>
+                        <input type="date" id="date" required class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Budget</label>
-                        <input type="number" id="budget" step="0.01" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <label class="block text-sm font-bold text-brand-dark mb-1">Budget</label>
+                        <input type="number" id="budget" step="0.01" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
                     </div>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Status</label>
-                    <select id="status" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Status</label>
+                    <select id="status" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
                         <option value="Ideation">Ideation</option>
                         <option value="To-Do">To-Do</option>
                         <option value="In Progress">In Progress</option>
                         <option value="Done">Done</option>
                     </select>
                 </div>
-                <div class="flex justify-end gap-2 mt-6">
-                    <button type="button" onclick="closeModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Save Task</button>
+                <div class="flex justify-end gap-3 mt-8">
+                    <button type="button" onclick="closeModal()" class="px-6 py-2.5 text-gray-500 font-bold hover:text-brand-red transition-colors">Cancel</button>
+                    <button type="submit" class="px-8 py-2.5 bg-brand-dark text-white rounded-xl font-black hover:bg-brand-blue transition-all shadow-lg">Save Task</button>
                 </div>
             </form>
         </div>
     </div>
 
     <!-- Modal for Adding Projects -->
-    <div id="project-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold">Create New Project</h3>
-                <button onclick="closeProjectModal()" class="text-gray-400 hover:text-gray-600">
-                    <i data-lucide="x"></i>
+    <div id="project-modal" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 border border-white/20">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-black text-brand-dark">Create Project</h3>
+                <button onclick="closeProjectModal()" class="text-gray-400 hover:text-brand-red transition-colors">
+                    <i data-lucide="x" class="w-8 h-8"></i>
                 </button>
             </div>
-            <form id="project-form" class="space-y-4">
+            <form id="project-form" class="space-y-5">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Project Name</label>
-                    <input type="text" id="project-name" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Project Name</label>
+                    <input type="text" id="project-name" required class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Description</label>
-                    <textarea id="project-description" rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Description</label>
+                    <textarea id="project-description" rows="3" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all"></textarea>
                 </div>
-                <div class="flex justify-end gap-2 mt-6">
-                    <button type="button" onclick="closeProjectModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Create Project</button>
+                <div class="flex justify-end gap-3 mt-8">
+                    <button type="button" onclick="closeProjectModal()" class="px-6 py-2.5 text-gray-500 font-bold hover:text-brand-red transition-colors">Cancel</button>
+                    <button type="submit" class="px-8 py-2.5 bg-brand-dark text-white rounded-xl font-black hover:bg-brand-blue transition-all shadow-lg">Create Project</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <script src="/static/script.js?v=1.2"></script>
+    <script src="/static/script.js?v=1.3"></script>
     <script>lucide.createIcons();</script>
 </body>
 </html>

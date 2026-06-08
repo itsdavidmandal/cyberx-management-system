@@ -6,29 +6,29 @@
     background: #f1f1f1;
 }
 ::-webkit-scrollbar-thumb {
-    background: #c7d2fe;
+    background: #44a6cc; /* brand-blue */
     border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: #818cf8;
+    background: #1c5070; /* brand-dark */
 }
 
 .view {
-    animation: fadeIn 0.3s ease-in-out;
+    animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(15px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
 /* Calendar Specific Styles */
 #calendar-grid > div {
-    transition: background-color 0.2s;
+    transition: all 0.2s ease;
 }
 
 #calendar-grid > div:hover {
-    background-color: #f9fafb;
+    background-color: rgba(28, 80, 112, 0.03); /* brand-dark/3 */
 }
 
 .event-container::-webkit-scrollbar {
@@ -36,6 +36,11 @@
 }
 
 .event-container::-webkit-scrollbar-thumb {
-    background: #e0e7ff;
+    background: #44a6cc;
     border-radius: 2px;
+}
+
+/* Modal Backdrop Blur */
+.backdrop-blur-sm {
+    backdrop-filter: blur(4px);
 }
