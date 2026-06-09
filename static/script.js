@@ -1,5 +1,6 @@
 let tasks = [];
 let projects = [];
+let guests = [];
 let viewDate = new Date();
 
 // Helper: Check if status is "Ideation"
@@ -10,17 +11,21 @@ function isIdeation(status) {
 
 async function fetchData() {
     try {
-        const [tasksRes, projectsRes] = await Promise.all([
+        const [tasksRes, projectsRes, guestsRes] = await Promise.all([
             fetch('/api/events/'),
-            fetch('/api/projects/')
+            fetch('/api/projects/'),
+            fetch('/api/guests/')
         ]);
         tasks = await tasksRes.json();
         projects = await projectsRes.json();
+        guests = await guestsRes.json();
         
         updateProjectDropdowns();
+        updateGuestProjectDropdowns();
         renderDashboard();
         renderKanban();
         renderCalendar();
+        renderGuests();
     } catch (error) {
         console.error('Error fetching data:', error);
     }
@@ -50,6 +55,7 @@ function showView(viewId) {
     if (viewId === 'calendar') renderCalendar();
     if (viewId === 'kanban') renderKanban();
     if (viewId === 'dashboard') renderDashboard();
+    if (viewId === 'guests') renderGuests();
 }
 
 // Task Modal Logic
@@ -641,6 +647,178 @@ async function deleteTask(id) {
 
 function exportCSV() { window.location.href = '/api/events/export/csv'; }
 function exportPDF() { window.location.href = '/api/events/export/pdf'; }
+
+// Guest Management Logic
+function updateGuestProjectDropdowns() {
+    const filters = ['guest-event-filter', 'guest-project-id'];
+    filters.forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
+        const currentVal = select.value;
+        
+        if (id === 'guest-event-filter') {
+            select.innerHTML = '<option value="">All Projects</option><option value="unassigned">Unassigned Only</option>';
+        } else {
+            select.innerHTML = '<option value="">Unassigned</option>';
+        }
+
+        projects.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.name;
+            select.appendChild(opt);
+        });
+        select.value = currentVal;
+    });
+}
+
+function openGuestModal(guest = null) {
+    const modal = document.getElementById('guest-modal');
+    const form = document.getElementById('guest-form');
+    const title = document.getElementById('guest-modal-title');
+    const submitBtn = document.getElementById('guest-submit-btn');
+
+    updateGuestProjectDropdowns();
+
+    if (guest) {
+        title.textContent = 'Edit Invitee';
+        submitBtn.textContent = 'Save Changes';
+        document.getElementById('edit-guest-id').value = guest.id;
+        document.getElementById('guest-name').value = guest.name;
+        document.getElementById('guest-project-id').value = guest.project_id || '';
+        document.getElementById('guest-email').value = guest.email || '';
+        document.getElementById('guest-phone').value = guest.phone || '';
+        document.getElementById('guest-org').value = guest.organization || '';
+        document.getElementById('guest-status').value = guest.status;
+    } else {
+        title.textContent = 'Add Invitee';
+        submitBtn.textContent = 'Save Invitee';
+        form.reset();
+        document.getElementById('edit-guest-id').value = '';
+    }
+    modal.classList.remove('hidden');
+}
+
+function closeGuestModal() {
+    document.getElementById('guest-modal').classList.add('hidden');
+}
+
+document.getElementById('guest-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('edit-guest-id').value;
+    const data = {
+        name: document.getElementById('guest-name').value,
+        project_id: parseInt(document.getElementById('guest-project-id').value) || null,
+        email: document.getElementById('guest-email').value || null,
+        phone: document.getElementById('guest-phone').value || null,
+        organization: document.getElementById('guest-org').value || null,
+        status: document.getElementById('guest-status').value
+    };
+
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/api/guests/${id}` : `/api/guests/`;
+
+    try {
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (response.ok) {
+            closeGuestModal();
+            fetchData();
+        }
+    } catch (error) {
+        console.error('Error saving guest:', error);
+    }
+});
+
+function renderGuests() {
+    const tbody = document.getElementById('guest-list-body');
+    const noMsg = document.getElementById('no-guests-msg');
+    const searchInput = document.getElementById('guest-search');
+    const filterInput = document.getElementById('guest-event-filter');
+    
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    const projectFilter = filterInput ? filterInput.value : '';
+
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const filtered = guests.filter(g => {
+        const matchesSearch = g.name.toLowerCase().includes(searchTerm) || 
+                             (g.email && g.email.toLowerCase().includes(searchTerm)) ||
+                             (g.organization && g.organization.toLowerCase().includes(searchTerm));
+        
+        let matchesProject = true;
+        if (projectFilter === 'unassigned') {
+            matchesProject = !g.project_id;
+        } else if (projectFilter !== '') {
+            matchesProject = g.project_id == projectFilter;
+        }
+        
+        return matchesSearch && matchesProject;
+    });
+
+    filtered.forEach(g => {
+        const project = projects.find(p => p.id === g.project_id) || { name: 'Unassigned' };
+        const tr = document.createElement('tr');
+        
+        let statusClass = 'bg-gray-100 text-gray-600';
+        if (g.status === 'Confirmed') statusClass = 'bg-green-100 text-green-700';
+        else if (g.status === 'Declined') statusClass = 'bg-red-100 text-red-700';
+        else if (g.status === 'Attended') statusClass = 'bg-brand-blue/10 text-brand-blue';
+
+        tr.innerHTML = `
+            <td class="px-6 py-4">
+                <div class="font-bold text-brand-dark">${g.name}</div>
+            </td>
+            <td class="px-6 py-4">
+                <div class="text-xs font-medium ${g.project_id ? 'text-brand-blue' : 'text-gray-400 italic'}">${project.name}</div>
+            </td>
+            <td class="px-6 py-4">
+                <div class="text-xs text-gray-500">${g.email || '-'}</div>
+                <div class="text-[10px] text-gray-400">${g.phone || ''}</div>
+            </td>
+            <td class="px-6 py-4">
+                <div class="text-xs text-gray-500">${g.organization || '-'}</div>
+            </td>
+            <td class="px-6 py-4">
+                <span class="px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider ${statusClass}">${g.status}</span>
+            </td>
+            <td class="px-6 py-4 text-right">
+                <div class="flex justify-end gap-2">
+                    <button onclick="editGuest(${g.id})" class="text-gray-300 hover:text-brand-blue transition-colors">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="deleteGuest(${g.id})" class="text-gray-300 hover:text-brand-red transition-colors">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    if (filtered.length === 0) noMsg.classList.remove('hidden');
+    else noMsg.classList.add('hidden');
+    
+    lucide.createIcons();
+}
+
+function editGuest(id) {
+    const guest = guests.find(g => g.id === id);
+    if (guest) openGuestModal(guest);
+}
+
+async function deleteGuest(id) {
+    if (confirm('Remove this invitee?')) {
+        try {
+            const response = await fetch(`/api/guests/${id}`, { method: 'DELETE' });
+            if (response.ok) fetchData();
+        } catch (error) { console.error('Error:', error); }
+    }
+}
 
 // Init
 fetchData();

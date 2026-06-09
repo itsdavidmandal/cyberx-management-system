@@ -85,6 +85,19 @@ Automated audit trail for all budget adjustments.
 | `change_date` | DateTime | Timestamp of the modification (Auto-generated) |
 | `project_id` | Integer | Foreign Key -> `projects.id` |
 
+### 5. `guests`
+Tracking for people invited to specific projects.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | Integer | Primary Key (Auto-increment) |
+| `name` | String | Guest full name (Indexed) |
+| `email` | String | Contact email (Nullable) |
+| `phone` | String | Contact phone number (Nullable) |
+| `organization` | String | Guest's organization or role (Nullable) |
+| `status` | String | RSVP Status (Pending, Confirmed, Declined, Attended) |
+| `project_id` | Integer | Foreign Key -> `projects.id` (Nullable) |
+
 ### Relationships & Mapping
 
 The database follows a **One-to-Many (1:N)** relationship model centered around the `projects` table:
@@ -92,12 +105,14 @@ The database follows a **One-to-Many (1:N)** relationship model centered around 
 - **Projects ↔ Tasks (`events`)**: A single project can have multiple tasks. Linked via `events.project_id`.
 - **Projects ↔ Expenses**: A single project tracks multiple expenses. Linked via `expenses.project_id`.
 - **Projects ↔ Budget Logs**: A single project maintains a history of budget changes. Linked via `budget_logs.project_id`.
+- **Projects ↔ Guests**: A single project can have multiple invitees. Linked via `guests.project_id`.
 
 ```mermaid
 erDiagram
     projects ||--o{ events : "has"
     projects ||--o{ expenses : "tracks"
     projects ||--o{ budget_logs : "records"
+    projects ||--o{ guests : "invites"
     
     projects {
         int id PK
@@ -118,6 +133,12 @@ erDiagram
         int id PK
         int project_id FK
         float amount
+    }
+    guests {
+        int id PK
+        int project_id FK
+        string name
+        string status
     }
 ```
 

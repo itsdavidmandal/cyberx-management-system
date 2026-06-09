@@ -16,6 +16,7 @@ class Project(Base):
     tasks = relationship("Task", back_populates="project")
     expenses = relationship("Expense", back_populates="project")
     budget_logs = relationship("BudgetLog", back_populates="project")
+    guests = relationship("Guest", back_populates="project", cascade="all, delete-orphan")
 
 class BudgetLog(Base):
     __tablename__ = "budget_logs"
@@ -52,3 +53,16 @@ class Task(Base):
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
 
     project = relationship("Project", back_populates="tasks")
+
+class Guest(Base):
+    __tablename__ = "guests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    organization = Column(String, nullable=True)
+    status = Column(String, default="Pending")
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+
+    project = relationship("Project", back_populates="guests")

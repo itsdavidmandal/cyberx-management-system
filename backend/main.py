@@ -86,6 +86,23 @@ class Task(TaskBase):
     class Config:
         from_attributes = True
 
+class GuestBase(BaseModel):
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    organization: Optional[str] = None
+    status: str = "Pending"
+
+class GuestCreate(GuestBase):
+    project_id: Optional[int] = None
+
+class Guest(GuestBase):
+    id: int
+    project_id: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
 # API Endpoints
 
 # Projects
@@ -415,6 +432,45 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
     db.delete(db_task)
     db.commit()
     return {"message": "Task deleted"}
+
+# Guests
+@app.get("/api/guests/", response_model=List[Guest])
+def read_all_guests(db: Session = Depends(get_db)):
+    return db.query(models.Guest).all()
+
+@app.post("/api/guests/", response_model=Guest)
+def create_guest(guest: GuestCreate, db: Session = Depends(get_db)):
+    db_guest = models.Guest(**guest.model_dump())
+    db.add(db_guest)
+    db.commit()
+    db.refresh(db_guest)
+    return db_guest
+
+@app.get("/api/projects/{project_id}/guests/", response_model=List[Guest])
+def read_project_guests(project_id: int, db: Session = Depends(get_db)):
+    return db.query(models.Guest).filter(models.Guest.project_id == project_id).all()
+
+@app.put("/api/guests/{guest_id}", response_model=Guest)
+def update_guest(guest_id: int, guest: GuestCreate, db: Session = Depends(get_db)):
+    db_guest = db.query(models.Guest).filter(models.Guest.id == guest_id).first()
+    if db_guest is None:
+        raise HTTPException(status_code=404, detail="Guest not found")
+    
+    for var, value in guest.model_dump().items():
+        setattr(db_guest, var, value)
+    
+    db.commit()
+    db.refresh(db_guest)
+    return db_guest
+
+@app.delete("/api/guests/{guest_id}")
+def delete_guest(guest_id: int, db: Session = Depends(get_db)):
+    db_guest = db.query(models.Guest).filter(models.Guest.id == guest_id).first()
+    if db_guest is None:
+        raise HTTPException(status_code=404, detail="Guest not found")
+    db.delete(db_guest)
+    db.commit()
+    return {"message": "Guest removed"}
 
 # Serve Static Files
 app.mount("/static", StaticFiles(directory="static"), name="static")

@@ -38,6 +38,7 @@
                     <button onclick="showView('dashboard')" class="hover:text-brand-blue transition-colors font-medium">Dashboard</button>
                     <button onclick="showView('calendar')" class="hover:text-brand-blue transition-colors font-medium">Calendar</button>
                     <button onclick="showView('kanban')" class="hover:text-brand-blue transition-colors font-medium">Kanban</button>
+                    <button onclick="showView('guests')" class="hover:text-brand-blue transition-colors font-medium">Guests</button>
                 </div>
                 <button onclick="openModal()" class="bg-white text-brand-dark px-4 py-1.5 rounded-lg font-bold hover:bg-brand-blue hover:text-white transition-all shadow-md">
                     + Add Task
@@ -118,6 +119,48 @@
             </div>
             <div id="kanban-swimlanes" class="space-y-12">
                 <!-- Project Swimlanes will be injected here -->
+            </div>
+        </section>
+
+        <!-- Guests View -->
+        <section id="guests" class="view hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-extrabold text-brand-dark">Invitee Manager</h2>
+                <button onclick="openGuestModal()" class="bg-brand-dark text-white px-6 py-2.5 rounded-lg font-bold hover:bg-brand-blue transition-all flex items-center gap-2 shadow-lg">
+                    <i data-lucide="user-plus"></i> Add Invitee
+                </button>
+            </div>
+            
+            <div class="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+                <div class="p-6 border-b border-gray-50 flex flex-wrap gap-4 items-center justify-between">
+                    <div class="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100 w-full md:w-auto">
+                        <i data-lucide="search" class="w-4 h-4 text-gray-400"></i>
+                        <input type="text" id="guest-search" placeholder="Search guests..." class="bg-transparent outline-none text-sm w-full" oninput="renderGuests()">
+                    </div>
+                    <select id="guest-event-filter" class="bg-gray-50 px-4 py-2 rounded-xl border border-gray-100 text-sm outline-none focus:border-brand-blue w-full md:w-auto" onchange="renderGuests()">
+                        <option value="">All Projects</option>
+                        <option value="unassigned">Unassigned Only</option>
+                    </select>
+                </div>
+                
+                <table class="w-full text-left">
+                    <thead class="bg-brand-dark/5">
+                        <tr>
+                            <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Name</th>
+                            <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Project</th>
+                            <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Contact</th>
+                            <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Organization</th>
+                            <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Status</th>
+                            <th class="px-6 py-4"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="guest-list-body" class="divide-y divide-gray-50">
+                        <!-- Guests will be injected here -->
+                    </tbody>
+                </table>
+                <div id="no-guests-msg" class="hidden p-12 text-center text-gray-400 font-bold">
+                    No invitees found.
+                </div>
             </div>
         </section>
     </main>
@@ -315,6 +358,58 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Modal for Adding/Editing Guests -->
+    <div id="guest-modal" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 border border-white/20">
+            <div class="flex justify-between items-center mb-6">
+                <h3 id="guest-modal-title" class="text-2xl font-black text-brand-dark">Add Invitee</h3>
+                <button onclick="closeGuestModal()" class="text-gray-400 hover:text-brand-red transition-colors">
+                    <i data-lucide="x" class="w-8 h-8"></i>
+                </button>
+            </div>
+            <form id="guest-form" class="space-y-5">
+                <input type="hidden" id="edit-guest-id">
+                <div>
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Full Name</label>
+                    <input type="text" id="guest-name" required class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Project</label>
+                    <select id="guest-project-id" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
+                        <option value="">Unassigned</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-bold text-brand-dark mb-1">Email</label>
+                        <input type="email" id="guest-email" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-brand-dark mb-1">Phone</label>
+                        <input type="text" id="guest-phone" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Organization / Role</label>
+                    <input type="text" id="guest-org" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Status</label>
+                    <select id="guest-status" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
+                        <option value="Pending">Pending</option>
+                        <option value="Confirmed">Confirmed</option>
+                        <option value="Declined">Declined</option>
+                        <option value="Attended">Attended</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-3 mt-8">
+                    <button type="button" onclick="closeGuestModal()" class="px-6 py-2.5 text-gray-500 font-bold hover:text-brand-red transition-colors">Cancel</button>
+                    <button type="submit" id="guest-submit-btn" class="px-8 py-2.5 bg-brand-dark text-white rounded-xl font-black hover:bg-brand-blue transition-all shadow-lg">Save Invitee</button>
+                </div>
+            </form>
         </div>
     </div>
 
