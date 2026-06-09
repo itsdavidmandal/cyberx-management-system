@@ -21,3 +21,6 @@ run.sh
 
 # Uploads
 static/uploads/
+
+# Deployment
+DEPLOYMENT_PLAN.md

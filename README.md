@@ -33,6 +33,94 @@ A centralized project and activity management platform designed for the **CyberX
 - **Reporting:** fpdf2
 - **Frontend:** Vanilla JS, Tailwind CSS, Lucide Icons
 
+## 🗄️ Database Schema
+
+The system uses a relational SQLite database. Below are the table definitions:
+
+### 1. `projects`
+Stores high-level club initiatives and their primary budgets.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | Integer | Primary Key (Auto-increment) |
+| `name` | String | Project name (Indexed) |
+| `description` | Text | Detailed project overview |
+| `start_date` | Date | Projected start date (Nullable) |
+| `end_date` | Date | Projected deadline (Nullable) |
+| `budget` | Float | Total allocated funds (Default: 0.0) |
+
+### 2. `events` (Tasks)
+Individual tasks or events linked to projects.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | Integer | Primary Key (Auto-increment) |
+| `title` | String | Task title (Indexed) |
+| `description` | Text | Task details |
+| `date` | Date | Scheduled date |
+| `budget` | Float | Specific budget allocation (Default: 0.0) |
+| `status` | String | Current stage (e.g., To-Do, In Progress, Done) |
+| `completed` | Boolean | Completion flag (Default: False) |
+| `project_id` | Integer | Foreign Key -> `projects.id` |
+
+### 3. `expenses`
+Financial expenditures recorded against projects.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | Integer | Primary Key (Auto-increment) |
+| `name` | String | Expense name/description (Indexed) |
+| `amount` | Float | Cost of the expense |
+| `date` | Date | Date of expenditure |
+| `receipt_path` | String | Local path to the uploaded receipt image |
+| `project_id` | Integer | Foreign Key -> `projects.id` |
+
+### 4. `budget_logs`
+Automated audit trail for all budget adjustments.
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | Integer | Primary Key (Auto-increment) |
+| `amount` | Float | The updated budget amount |
+| `change_date` | DateTime | Timestamp of the modification (Auto-generated) |
+| `project_id` | Integer | Foreign Key -> `projects.id` |
+
+### Relationships & Mapping
+
+The database follows a **One-to-Many (1:N)** relationship model centered around the `projects` table:
+
+- **Projects ↔ Tasks (`events`)**: A single project can have multiple tasks. Linked via `events.project_id`.
+- **Projects ↔ Expenses**: A single project tracks multiple expenses. Linked via `expenses.project_id`.
+- **Projects ↔ Budget Logs**: A single project maintains a history of budget changes. Linked via `budget_logs.project_id`.
+
+```mermaid
+erDiagram
+    projects ||--o{ events : "has"
+    projects ||--o{ expenses : "tracks"
+    projects ||--o{ budget_logs : "records"
+    
+    projects {
+        int id PK
+        string name
+        float budget
+    }
+    events {
+        int id PK
+        int project_id FK
+        string title
+    }
+    expenses {
+        int id PK
+        int project_id FK
+        float amount
+    }
+    budget_logs {
+        int id PK
+        int project_id FK
+        float amount
+    }
+```
+
 ## 🏁 Getting Started
 
 ### Prerequisites
