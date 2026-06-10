@@ -596,6 +596,23 @@ function renderCalendar() {
         const cell = createCalendarCell(d, true, isToday);
         const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         
+        // Render Projects
+        const container = cell.querySelector('.event-container');
+        if (container) {
+            projects.filter(p => {
+                if (!p.start_date) return false;
+                if (p.start_date === dateString) return true;
+                if (p.end_date && dateString > p.start_date && dateString <= p.end_date) return true;
+                return false;
+            }).forEach(p => {
+                const pill = document.createElement('div');
+                pill.className = `mt-1.5 px-2.5 py-1.5 bg-brand-dark text-white text-[10px] font-black uppercase tracking-wider rounded-md truncate cursor-pointer hover:opacity-80 transition-opacity`;
+                pill.innerText = `PROJ: ${p.name}`;
+                pill.onclick = (e) => { e.stopPropagation(); editProject(p.id); };
+                container.appendChild(pill);
+            });
+        }
+
         tasks.filter(t => t.date === dateString).forEach(t => {
             const pill = document.createElement('div');
             const pillColor = isIdeation(t.status) ? 'bg-brand-red text-white' : 'bg-brand-blue text-white';
