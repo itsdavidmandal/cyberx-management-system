@@ -12,6 +12,7 @@ import io
 import shutil
 import uuid
 from fpdf import FPDF
+from PIL import Image
 
 from . import models, database
 from .database import engine, get_db
@@ -19,8 +20,37 @@ from .database import engine, get_db
 # Create tables
 models.Base.metadata.create_all(bind=engine)
 
-UPLOAD_DIR = "static/uploads/receipts"
+UPLOAD_DIR = "uploads/receipts"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+def validate_receipt(file: UploadFile):
+    # Check extension
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Extension {ext} not allowed.")
+    
+    # Check MIME type
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=400, detail=f"MIME type {file.content_type} not allowed.")
+
+    # Check file size
+    file.file.seek(0, os.SEEK_END)
+    size = file.file.tell()
+    file.file.seek(0)
+    if size > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File too large (max 5MB).")
+
+    # Verify image integrity
+    try:
+        with Image.open(file.file) as img:
+            img.verify()
+        file.file.seek(0)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid image file.")
 
 app = FastAPI(title="Planning API")
 
@@ -81,6 +111,19 @@ class TaskCreate(TaskBase):
     pass
 
 class Task(TaskBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+class IdeaBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+
+class IdeaCreate(IdeaBase):
+    pass
+
+class Idea(IdeaBase):
     id: int
 
     class Config:
@@ -184,7 +227,8 @@ async def create_expense(
 ):
     receipt_path = None
     if receipt:
-        file_ext = os.path.splitext(receipt.filename)[1]
+        validate_receipt(receipt)
+        file_ext = os.path.splitext(receipt.filename)[1].lower()
         file_name = f"{uuid.uuid4()}{file_ext}"
         receipt_path = os.path.join(UPLOAD_DIR, file_name)
         with open(receipt_path, "wb") as buffer:
@@ -218,6 +262,13 @@ def delete_expense(expense_id: int, db: Session = Depends(get_db)):
     db.delete(db_expense)
     db.commit()
     return {"message": "Expense deleted"}
+
+@app.get("/api/receipts/{filename}")
+async def get_receipt(filename: str):
+    file_path = os.path.join(UPLOAD_DIR, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    return FileResponse(file_path)
 
 # Project Report Generation
 @app.get("/api/projects/{project_id}/report")
@@ -308,6 +359,39 @@ def generate_project_report(project_id: int, db: Session = Depends(get_db)):
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=Project_Report_{project_id}.pdf"}
     )
+
+# Ideas
+@app.get("/api/ideas/", response_model=List[Idea])
+def read_ideas(db: Session = Depends(get_db)):
+    return db.query(models.Idea).all()
+
+@app.post("/api/ideas/", response_model=Idea)
+def create_idea(idea: IdeaCreate, db: Session = Depends(get_db)):
+    db_idea = models.Idea(**idea.model_dump())
+    db.add(db_idea)
+    db.commit()
+    db.refresh(db_idea)
+    return db_idea
+
+@app.put("/api/ideas/{idea_id}", response_model=Idea)
+def update_idea(idea_id: int, idea: IdeaCreate, db: Session = Depends(get_db)):
+    db_idea = db.query(models.Idea).filter(models.Idea.id == idea_id).first()
+    if not db_idea:
+        raise HTTPException(status_code=404, detail="Idea not found")
+    for var, value in idea.model_dump().items():
+        setattr(db_idea, var, value)
+    db.commit()
+    db.refresh(db_idea)
+    return db_idea
+
+@app.delete("/api/ideas/{idea_id}")
+def delete_idea(idea_id: int, db: Session = Depends(get_db)):
+    db_idea = db.query(models.Idea).filter(models.Idea.id == idea_id).first()
+    if not db_idea:
+        raise HTTPException(status_code=404, detail="Idea not found")
+    db.delete(db_idea)
+    db.commit()
+    return {"ok": True}
 
 # Tasks (Mapped to /api/events/ for frontend compatibility)
 @app.post("/api/events/", response_model=Task)

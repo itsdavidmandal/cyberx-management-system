@@ -54,6 +54,13 @@ class Task(Base):
 
     project = relationship("Project", back_populates="tasks")
 
+class Idea(Base):
+    __tablename__ = "ideas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, index=True)
+    description = Column(Text)
+
 class Guest(Base):
     __tablename__ = "guests"
 
