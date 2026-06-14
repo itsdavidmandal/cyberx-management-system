@@ -146,6 +146,52 @@ class Guest(GuestBase):
     class Config:
         from_attributes = True
 
+class PersonBase(BaseModel):
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    student_id: Optional[str] = None
+
+class PersonCreate(PersonBase):
+    pass
+
+class Person(PersonBase):
+    id: int
+    created_at: datetime
+    project_count: int = 0
+    attended_count: int = 0
+    project_ids: List[int] = []
+
+    class Config:
+        from_attributes = True
+
+class AttendanceBase(BaseModel):
+    attended: bool = False
+
+class AttendanceCreate(AttendanceBase):
+    person_id: int
+    project_id: int
+
+class Attendance(AttendanceBase):
+    id: int
+    person_id: int
+    project_id: int
+    registered_at: datetime
+    person_name: Optional[str] = None
+    person_email: Optional[str] = None
+    person_phone: Optional[str] = None
+    person_student_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class BulkImportRequest(BaseModel):
+    text: str
+    project_id: Optional[int] = None
+
+class BulkAddToProjectRequest(BaseModel):
+    person_ids: List[int]
+
 # API Endpoints
 
 # Projects
@@ -555,6 +601,235 @@ def delete_guest(guest_id: int, db: Session = Depends(get_db)):
     db.delete(db_guest)
     db.commit()
     return {"message": "Guest removed"}
+
+# People
+@app.get("/api/people/", response_model=List[Person])
+def read_people(db: Session = Depends(get_db)):
+    people = db.query(models.Person).order_by(models.Person.name).all()
+    # Attach project count, attended count, and IDs for each person
+    for p in people:
+        p.project_count = len(p.attendances)
+        p.attended_count = sum(1 for a in p.attendances if a.attended)
+        p.project_ids = [a.project_id for a in p.attendances]
+    return people
+
+@app.post("/api/people/", response_model=Person)
+def create_person(person: PersonCreate, db: Session = Depends(get_db)):
+    db_person = models.Person(**person.model_dump())
+    db.add(db_person)
+    db.commit()
+    db.refresh(db_person)
+    db_person.project_count = 0
+    db_person.attended_count = 0
+    db_person.project_ids = []
+    return db_person
+
+@app.put("/api/people/{person_id}", response_model=Person)
+def update_person(person_id: int, person: PersonCreate, db: Session = Depends(get_db)):
+    db_person = db.query(models.Person).filter(models.Person.id == person_id).first()
+    if not db_person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    for var, value in person.model_dump().items():
+        setattr(db_person, var, value)
+    db.commit()
+    db.refresh(db_person)
+    db_person.project_count = len(db_person.attendances)
+    db_person.attended_count = sum(1 for a in db_person.attendances if a.attended)
+    db_person.project_ids = [a.project_id for a in db_person.attendances]
+    return db_person
+
+@app.delete("/api/people/{person_id}")
+def delete_person(person_id: int, db: Session = Depends(get_db)):
+    db_person = db.query(models.Person).filter(models.Person.id == person_id).first()
+    if not db_person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    db.delete(db_person)
+    db.commit()
+    return {"message": "Person and associated attendance records removed"}
+
+# Bulk Import People
+@app.post("/api/people/bulk-import")
+def bulk_import_people(data: BulkImportRequest, db: Session = Depends(get_db)):
+    """Parse pasted text (one name per line, or CSV with name,email,phone,student_id)
+    and create Person records. Optionally register them for a project."""
+    lines = [line.strip() for line in data.text.strip().split("\n") if line.strip()]
+    created = []
+    skipped = 0
+
+    for line in lines:
+        # Detect delimiter: tab or comma
+        if "\t" in line:
+            parts = [p.strip() for p in line.split("\t")]
+        elif "," in line:
+            parts = [p.strip() for p in line.split(",")]
+        else:
+            parts = [line.strip()]
+
+        name = parts[0] if parts else line.strip()
+        if not name:
+            skipped += 1
+            continue
+
+        email = parts[1] if len(parts) > 1 and parts[1] else None
+        phone = parts[2] if len(parts) > 2 and parts[2] else None
+        student_id = parts[3] if len(parts) > 3 and parts[3] else None
+
+        db_person = models.Person(
+            name=name,
+            email=email,
+            phone=phone,
+            student_id=student_id
+        )
+        db.add(db_person)
+        db.flush()
+
+        # If a project is specified, register attendance
+        if data.project_id:
+            project = db.query(models.Project).filter(models.Project.id == data.project_id).first()
+            if project:
+                db_attendance = models.Attendance(
+                    person_id=db_person.id,
+                    project_id=data.project_id
+                )
+                db.add(db_attendance)
+
+        created.append({"id": db_person.id, "name": db_person.name})
+
+    db.commit()
+    return {
+        "message": f"Imported {len(created)} people" + (f", skipped {skipped}" if skipped else ""),
+        "count": len(created),
+        "people": created
+    }
+
+# Attendance
+@app.get("/api/projects/{project_id}/attendance/", response_model=List[Attendance])
+def read_project_attendance(project_id: int, db: Session = Depends(get_db)):
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    records = db.query(models.Attendance).filter(
+        models.Attendance.project_id == project_id
+    ).order_by(models.Attendance.registered_at.desc()).all()
+
+    # Attach person details
+    result = []
+    for rec in records:
+        attendance_data = {
+            "id": rec.id,
+            "person_id": rec.person_id,
+            "project_id": rec.project_id,
+            "attended": rec.attended,
+            "registered_at": rec.registered_at,
+            "person_name": rec.person.name if rec.person else None,
+            "person_email": rec.person.email if rec.person else None,
+            "person_phone": rec.person.phone if rec.person else None,
+            "person_student_id": rec.person.student_id if rec.person else None,
+        }
+        result.append(attendance_data)
+
+    return result
+
+@app.post("/api/projects/{project_id}/attendance/")
+def add_people_to_project(
+    project_id: int,
+    data: BulkAddToProjectRequest,
+    db: Session = Depends(get_db)
+):
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    added = []
+    for person_id in data.person_ids:
+        person = db.query(models.Person).filter(models.Person.id == person_id).first()
+        if not person:
+            continue
+
+        # Check if already registered
+        existing = db.query(models.Attendance).filter(
+            models.Attendance.person_id == person_id,
+            models.Attendance.project_id == project_id
+        ).first()
+        if existing:
+            continue
+
+        db_attendance = models.Attendance(person_id=person_id, project_id=project_id)
+        db.add(db_attendance)
+        added.append(person.name)
+
+    db.commit()
+    return {"message": f"Added {len(added)} people to project", "added": added}
+
+@app.post("/api/projects/{project_id}/attendance/bulk")
+def bulk_add_attendance(
+    project_id: int,
+    data: BulkImportRequest,
+    db: Session = Depends(get_db)
+):
+    """Bulk import people from pasted text AND register them for this project in one call."""
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    lines = [line.strip() for line in data.text.strip().split("\n") if line.strip()]
+    added = 0
+
+    for line in lines:
+        if "\t" in line:
+            parts = [p.strip() for p in line.split("\t")]
+        elif "," in line:
+            parts = [p.strip() for p in line.split(",")]
+        else:
+            parts = [line.strip()]
+
+        name = parts[0] if parts else line.strip()
+        if not name:
+            continue
+
+        email = parts[1] if len(parts) > 1 and parts[1] else None
+        phone = parts[2] if len(parts) > 2 and parts[2] else None
+        student_id = parts[3] if len(parts) > 3 and parts[3] else None
+
+        db_person = models.Person(
+            name=name,
+            email=email,
+            phone=phone,
+            student_id=student_id
+        )
+        db.add(db_person)
+        db.flush()
+
+        db_attendance = models.Attendance(person_id=db_person.id, project_id=project_id)
+        db.add(db_attendance)
+        added += 1
+
+    db.commit()
+    return {"message": f"Added {added} people to project attendance", "count": added}
+
+@app.put("/api/attendance/{attendance_id}")
+def update_attendance(attendance_id: int, data: AttendanceBase, db: Session = Depends(get_db)):
+    db_attendance = db.query(models.Attendance).filter(models.Attendance.id == attendance_id).first()
+    if not db_attendance:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+    db_attendance.attended = data.attended
+    db.commit()
+    db.refresh(db_attendance)
+    return {
+        "id": db_attendance.id,
+        "attended": db_attendance.attended,
+        "person_name": db_attendance.person.name if db_attendance.person else None
+    }
+
+@app.delete("/api/attendance/{attendance_id}")
+def delete_attendance(attendance_id: int, db: Session = Depends(get_db)):
+    db_attendance = db.query(models.Attendance).filter(models.Attendance.id == attendance_id).first()
+    if not db_attendance:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+    db.delete(db_attendance)
+    db.commit()
+    return {"message": "Person removed from project attendance"}
 
 # Serve Static Files
 app.mount("/static", StaticFiles(directory="static"), name="static")

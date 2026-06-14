@@ -2,28 +2,33 @@ let tasks = [];
 let projects = [];
 let ideas = [];
 let guests = [];
+let people = [];
 let viewDate = new Date();
 
 async function fetchData() {
     try {
-        const [tasksRes, projectsRes, ideasRes, guestsRes] = await Promise.all([
+        const [tasksRes, projectsRes, ideasRes, guestsRes, peopleRes] = await Promise.all([
             fetch('/api/events/'),
             fetch('/api/projects/'),
             fetch('/api/ideas/'),
-            fetch('/api/guests/')
+            fetch('/api/guests/'),
+            fetch('/api/people/')
         ]);
         tasks = await tasksRes.json();
         projects = await projectsRes.json();
         ideas = await ideasRes.json();
         guests = await guestsRes.json();
+        people = await peopleRes.json();
 
         updateProjectDropdowns();
         updateGuestProjectDropdowns();
+        updatePeopleProjectFilter();
         renderDashboard();
         renderIdeas();
         renderKanban();
         renderCalendar();
         renderGuests();
+        renderPeople();
     } catch (error) {
         console.error('Error fetching data:', error);
     }
@@ -54,6 +59,7 @@ function showView(viewId) {
     if (viewId === 'kanban') renderKanban();
     if (viewId === 'dashboard') { renderDashboard(); renderIdeas(); }
     if (viewId === 'guests') renderGuests();
+    if (viewId === 'people') renderPeople();
 }
 
 // Task Modal Logic
@@ -580,6 +586,9 @@ function renderKanban() {
                             <button onclick="openFinanceModal(${id})" class="bg-brand-blue/10 text-brand-blue hover:bg-brand-blue hover:text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1">
                                 <i data-lucide="dollar-sign" class="w-3 h-3"></i> Finance
                             </button>
+                            <button onclick="openAttendanceModal(${id})" class="bg-green-50 text-green-700 hover:bg-green-100 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1" title="Attendance">
+                                <i data-lucide="users" class="w-3 h-3"></i> Attend
+                            </button>
                             <button onclick="editProject(${id})" class="text-gray-400 hover:text-brand-blue p-1 transition-colors" title="Edit Project">
                                 <i data-lucide="settings" class="w-5 h-5"></i>
                             </button>
@@ -958,6 +967,379 @@ async function deleteGuest(id) {
         } catch (error) { console.error('Error:', error); }
     }
 }
+
+// People Management Logic
+function updatePeopleProjectFilter() {
+    const filter = document.getElementById('people-project-filter');
+    if (!filter) return;
+    const currentVal = filter.value;
+    filter.innerHTML = '<option value="">All People</option><option value="by-project">Filter by Project...</option>';
+    projects.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        filter.appendChild(opt);
+    });
+    filter.value = currentVal;
+}
+
+function updateBulkImportProjectDropdown() {
+    const select = document.getElementById('bulk-import-project');
+    if (!select) return;
+    select.innerHTML = '<option value="">Just import people</option>';
+    projects.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        select.appendChild(opt);
+    });
+}
+
+function renderPeople() {
+    const tbody = document.getElementById('people-list-body');
+    const noMsg = document.getElementById('no-people-msg');
+    const searchInput = document.getElementById('people-search');
+    const filterInput = document.getElementById('people-project-filter');
+
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    const projectFilter = filterInput ? filterInput.value : '';
+
+    let filtered = people.filter(p => {
+        const matchesSearch = p.name.toLowerCase().includes(searchTerm) ||
+            (p.email && p.email.toLowerCase().includes(searchTerm)) ||
+            (p.student_id && p.student_id.toLowerCase().includes(searchTerm));
+        return matchesSearch;
+    });
+
+    // If filtering by project, only show people registered for that project
+    if (projectFilter && projectFilter !== 'by-project') {
+        filtered = filtered.filter(p => {
+            return p.project_ids && p.project_ids.includes(parseInt(projectFilter));
+        });
+    }
+
+    filtered.forEach(p => {
+        const tr = document.createElement('tr');
+        const eventCount = p.project_count || 0;
+        const attendedCount = p.attended_count || 0;
+
+        // Color logic: green = all attended, blue = partial, amber = registered only, gray = none
+        let badgeClass, badgeText;
+        if (eventCount === 0) {
+            badgeClass = 'bg-gray-100 text-gray-400';
+            badgeText = '0 events';
+        } else if (attendedCount === eventCount) {
+            badgeClass = 'bg-green-100 text-green-700';
+            badgeText = `${attendedCount}/${eventCount} attended`;
+        } else if (attendedCount > 0) {
+            badgeClass = 'bg-brand-blue/10 text-brand-blue';
+            badgeText = `${attendedCount}/${eventCount} attended`;
+        } else {
+            badgeClass = 'bg-amber-100 text-amber-700';
+            badgeText = `${eventCount} registered`;
+        }
+
+        tr.innerHTML = `
+            <td class="px-6 py-4">
+                <div class="font-bold text-brand-dark">${escapeHtml(p.name)}</div>
+            </td>
+            <td class="px-6 py-4">
+                <div class="text-xs text-gray-500">${escapeHtml(p.email || '-')}</div>
+                <div class="text-[10px] text-gray-400">${escapeHtml(p.phone || '')}</div>
+            </td>
+            <td class="px-6 py-4">
+                <div class="text-xs font-mono text-brand-blue font-bold">${escapeHtml(p.student_id || '-')}</div>
+            </td>
+            <td class="px-6 py-4">
+                <span class="px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider ${badgeClass}">${badgeText}</span>
+            </td>
+            <td class="px-6 py-4 text-right">
+                <div class="flex justify-end gap-2">
+                    <button onclick="editPerson(${p.id})" class="text-gray-300 hover:text-brand-blue transition-colors">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="deletePerson(${p.id})" class="text-gray-300 hover:text-brand-red transition-colors">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    if (filtered.length === 0) noMsg.classList.remove('hidden');
+    else noMsg.classList.add('hidden');
+
+    lucide.createIcons();
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function openPersonModal(person = null) {
+    const modal = document.getElementById('person-modal');
+    const form = document.getElementById('person-form');
+    const title = document.getElementById('person-modal-title');
+    const submitBtn = document.getElementById('person-submit-btn');
+
+    if (person) {
+        title.textContent = 'Edit Person';
+        submitBtn.textContent = 'Save Changes';
+        document.getElementById('edit-person-id').value = person.id;
+        document.getElementById('person-name').value = person.name;
+        document.getElementById('person-email').value = person.email || '';
+        document.getElementById('person-phone').value = person.phone || '';
+        document.getElementById('person-student-id').value = person.student_id || '';
+    } else {
+        title.textContent = 'Add Person';
+        submitBtn.textContent = 'Save Person';
+        form.reset();
+        document.getElementById('edit-person-id').value = '';
+    }
+    modal.classList.remove('hidden');
+}
+
+function closePersonModal() {
+    document.getElementById('person-modal').classList.add('hidden');
+}
+
+function editPerson(id) {
+    const person = people.find(p => p.id === id);
+    if (person) openPersonModal(person);
+}
+
+async function deletePerson(id) {
+    if (confirm('Delete this person? Their attendance records will also be removed.')) {
+        try {
+            const response = await fetch(`/api/people/${id}`, { method: 'DELETE' });
+            if (response.ok) fetchData();
+        } catch (error) { console.error('Error:', error); }
+    }
+}
+
+document.getElementById('person-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('edit-person-id').value;
+    const data = {
+        name: document.getElementById('person-name').value,
+        email: document.getElementById('person-email').value || null,
+        phone: document.getElementById('person-phone').value || null,
+        student_id: document.getElementById('person-student-id').value || null
+    };
+
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/api/people/${id}` : '/api/people/';
+
+    try {
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (response.ok) {
+            closePersonModal();
+            fetchData();
+        }
+    } catch (error) {
+        console.error('Error saving person:', error);
+    }
+});
+
+// Bulk Import Logic
+function openBulkImportModal() {
+    updateBulkImportProjectDropdown();
+    document.getElementById('bulk-import-text').value = '';
+    document.getElementById('bulk-import-result').classList.add('hidden');
+    document.getElementById('bulk-import-modal').classList.remove('hidden');
+}
+
+function closeBulkImportModal() {
+    document.getElementById('bulk-import-modal').classList.add('hidden');
+}
+
+document.getElementById('bulk-import-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = document.getElementById('bulk-import-text').value;
+    const projectId = document.getElementById('bulk-import-project').value;
+
+    const resultDiv = document.getElementById('bulk-import-result');
+
+    try {
+        const response = await fetch('/api/people/bulk-import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: text,
+                project_id: projectId ? parseInt(projectId) : null
+            })
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            resultDiv.classList.remove('hidden');
+            resultDiv.textContent = `✓ ${result.message}`;
+            resultDiv.className = 'bg-green-50 border border-green-200 rounded-xl p-4 text-sm font-bold text-green-700';
+            fetchData();
+            // Clear textarea for next paste
+            document.getElementById('bulk-import-text').value = '';
+        } else {
+            resultDiv.classList.remove('hidden');
+            resultDiv.textContent = 'Error importing people.';
+            resultDiv.className = 'bg-red-50 border border-red-200 rounded-xl p-4 text-sm font-bold text-red-700';
+        }
+    } catch (error) {
+        console.error('Error importing people:', error);
+        resultDiv.classList.remove('hidden');
+        resultDiv.textContent = 'Network error. Please try again.';
+        resultDiv.className = 'bg-red-50 border border-red-200 rounded-xl p-4 text-sm font-bold text-red-700';
+    }
+});
+
+// Attendance Logic
+let currentAttendanceProjectId = null;
+let currentAttendanceRecords = [];
+
+async function openAttendanceModal(projectId) {
+    const project = projects.find(p => p.id == projectId);
+    if (!project) return;
+
+    currentAttendanceProjectId = projectId;
+    document.getElementById('attendance-project-id').value = projectId;
+    document.getElementById('attendance-project-name').textContent = project.name + ' — Attendance';
+    document.getElementById('attendance-bulk-text').value = '';
+    // Clear search
+    const searchInput = document.getElementById('attendance-search');
+    if (searchInput) searchInput.value = '';
+    document.getElementById('attendance-modal').classList.remove('hidden');
+
+    await fetchAttendance(projectId);
+}
+
+function closeAttendanceModal() {
+    document.getElementById('attendance-modal').classList.add('hidden');
+    currentAttendanceProjectId = null;
+    currentAttendanceRecords = [];
+}
+
+async function fetchAttendance(projectId) {
+    try {
+        const response = await fetch(`/api/projects/${projectId}/attendance/`);
+        currentAttendanceRecords = await response.json();
+        filterAttendance();
+    } catch (error) {
+        console.error('Error fetching attendance:', error);
+    }
+}
+
+function filterAttendance() {
+    const searchInput = document.getElementById('attendance-search');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    const filtered = currentAttendanceRecords.filter(rec =>
+        (rec.person_name || '').toLowerCase().includes(searchTerm) ||
+        (rec.person_email || '').toLowerCase().includes(searchTerm)
+    );
+    renderAttendance(filtered);
+}
+
+function renderAttendance(records) {
+    const tbody = document.getElementById('attendance-list-body');
+    const noMsg = document.getElementById('no-attendance-msg');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    let presentCount = 0;
+    records.forEach(rec => {
+        if (rec.attended) presentCount++;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="px-4 py-3">
+                <div class="font-bold text-brand-dark text-sm">${escapeHtml(rec.person_name || 'Unknown')}</div>
+                ${rec.person_email ? `<div class="text-[10px] text-gray-400">${escapeHtml(rec.person_email)}</div>` : ''}
+            </td>
+            <td class="px-4 py-3 text-center">
+                <input type="checkbox" ${rec.attended ? 'checked' : ''}
+                    onchange="toggleAttendance(${rec.id}, this.checked)"
+                    class="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer">
+            </td>
+            <td class="px-4 py-3 text-right">
+                <button onclick="removeAttendance(${rec.id})" class="text-gray-300 hover:text-brand-red transition-colors">
+                    <i data-lucide="x-circle" class="w-4 h-4"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    if (records.length === 0) noMsg.classList.remove('hidden');
+    else noMsg.classList.add('hidden');
+
+    // Update summary — always based on full dataset, not filtered
+    const totalPresent = currentAttendanceRecords.filter(r => r.attended).length;
+    document.getElementById('att-count-present').textContent = totalPresent;
+    document.getElementById('att-count-total').textContent = currentAttendanceRecords.length;
+
+    lucide.createIcons();
+}
+
+async function toggleAttendance(attendanceId, attended) {
+    try {
+        const response = await fetch(`/api/attendance/${attendanceId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ attended })
+        });
+        if (response.ok && currentAttendanceProjectId) {
+            await fetchAttendance(currentAttendanceProjectId);
+        }
+    } catch (error) {
+        console.error('Error toggling attendance:', error);
+    }
+}
+
+async function removeAttendance(attendanceId) {
+    if (!confirm('Remove this person from the attendance list?')) return;
+    try {
+        const response = await fetch(`/api/attendance/${attendanceId}`, { method: 'DELETE' });
+        if (response.ok && currentAttendanceProjectId) {
+            await fetchAttendance(currentAttendanceProjectId);
+            fetchData(); // Refresh people list too
+        }
+    } catch (error) {
+        console.error('Error removing attendance:', error);
+    }
+}
+
+document.getElementById('attendance-bulk-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const projectId = document.getElementById('attendance-project-id').value;
+    const text = document.getElementById('attendance-bulk-text').value;
+
+    if (!text.trim()) return;
+
+    try {
+        const response = await fetch(`/api/projects/${projectId}/attendance/bulk`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            document.getElementById('attendance-bulk-text').value = '';
+            await fetchAttendance(projectId);
+            fetchData(); // Refresh people list
+        }
+    } catch (error) {
+        console.error('Error adding attendees:', error);
+    }
+});
 
 // Init
 fetchData();

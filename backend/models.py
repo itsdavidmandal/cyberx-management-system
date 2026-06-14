@@ -17,6 +17,7 @@ class Project(Base):
     expenses = relationship("Expense", back_populates="project")
     budget_logs = relationship("BudgetLog", back_populates="project")
     guests = relationship("Guest", back_populates="project", cascade="all, delete-orphan")
+    attendees = relationship("Attendance", back_populates="project", cascade="all, delete-orphan")
 
 class BudgetLog(Base):
     __tablename__ = "budget_logs"
@@ -73,3 +74,27 @@ class Guest(Base):
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
 
     project = relationship("Project", back_populates="guests")
+
+class Person(Base):
+    __tablename__ = "people"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True, nullable=False)
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    student_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=func.now())
+
+    attendances = relationship("Attendance", back_populates="person", cascade="all, delete-orphan")
+
+class Attendance(Base):
+    __tablename__ = "attendance"
+
+    id = Column(Integer, primary_key=True, index=True)
+    person_id = Column(Integer, ForeignKey("people.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    attended = Column(Boolean, default=False)
+    registered_at = Column(DateTime, default=func.now())
+
+    person = relationship("Person", back_populates="attendances")
+    project = relationship("Project", back_populates="attendees")

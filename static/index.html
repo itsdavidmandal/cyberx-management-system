@@ -38,6 +38,7 @@
                     <button onclick="showView('dashboard')" class="hover:text-brand-blue transition-colors font-medium">Dashboard</button>
                     <button onclick="showView('calendar')" class="hover:text-brand-blue transition-colors font-medium">Calendar</button>
                     <button onclick="showView('kanban')" class="hover:text-brand-blue transition-colors font-medium">Kanban</button>
+                    <button onclick="showView('people')" class="hover:text-brand-blue transition-colors font-medium">People</button>
                     <button onclick="showView('guests')" class="hover:text-brand-blue transition-colors font-medium">Guests</button>
                 </div>
                 <button onclick="openModal()" class="bg-white text-brand-dark px-4 py-1.5 rounded-lg font-bold hover:bg-brand-blue hover:text-white transition-all shadow-md">
@@ -168,6 +169,52 @@
                 </table>
                 <div id="no-guests-msg" class="hidden p-12 text-center text-gray-400 font-bold">
                     No invitees found.
+                </div>
+            </div>
+        </section>
+
+        <!-- People View -->
+        <section id="people" class="view hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-extrabold text-brand-dark">People Directory</h2>
+                <div class="flex gap-2">
+                    <button onclick="openBulkImportModal()" class="flex items-center gap-2 bg-brand-blue/10 text-brand-blue px-4 py-2 rounded-lg shadow-sm hover:bg-brand-blue/20 transition-colors font-bold border border-brand-blue/20">
+                        <i data-lucide="clipboard-paste"></i> Bulk Import
+                    </button>
+                    <button onclick="openPersonModal()" class="bg-brand-dark text-white px-6 py-2.5 rounded-lg font-bold hover:bg-brand-blue transition-all flex items-center gap-2 shadow-lg">
+                        <i data-lucide="user-plus"></i> Add Person
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+                <div class="p-6 border-b border-gray-50 flex flex-wrap gap-4 items-center justify-between">
+                    <div class="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100 w-full md:w-auto">
+                        <i data-lucide="search" class="w-4 h-4 text-gray-400"></i>
+                        <input type="text" id="people-search" placeholder="Search people..." class="bg-transparent outline-none text-sm w-full" oninput="renderPeople()">
+                    </div>
+                    <select id="people-project-filter" class="bg-gray-50 px-4 py-2 rounded-xl border border-gray-100 text-sm outline-none focus:border-brand-blue w-full md:w-auto" onchange="renderPeople()">
+                        <option value="">All People</option>
+                        <option value="by-project">Filter by Project...</option>
+                    </select>
+                </div>
+
+                <table class="w-full text-left">
+                    <thead class="bg-brand-dark/5">
+                        <tr>
+                            <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Name</th>
+                            <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Contact</th>
+                            <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Student ID</th>
+                            <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Events</th>
+                            <th class="px-6 py-4"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="people-list-body" class="divide-y divide-gray-50">
+                        <!-- People will be injected here -->
+                    </tbody>
+                </table>
+                <div id="no-people-msg" class="hidden p-12 text-center text-gray-400 font-bold">
+                    No people found. Use Bulk Import to add people from Google Form responses.
                 </div>
             </div>
         </section>
@@ -420,12 +467,150 @@
         </div>
     </div>
 
+    <!-- Modal for Adding/Editing People -->
+    <div id="person-modal" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 border border-white/20">
+            <div class="flex justify-between items-center mb-6">
+                <h3 id="person-modal-title" class="text-2xl font-black text-brand-dark">Add Person</h3>
+                <button onclick="closePersonModal()" class="text-gray-400 hover:text-brand-red transition-colors">
+                    <i data-lucide="x" class="w-8 h-8"></i>
+                </button>
+            </div>
+            <form id="person-form" class="space-y-5">
+                <input type="hidden" id="edit-person-id">
+                <div>
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Full Name</label>
+                    <input type="text" id="person-name" required class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-bold text-brand-dark mb-1">Email</label>
+                        <input type="email" id="person-email" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-brand-dark mb-1">Phone</label>
+                        <input type="text" id="person-phone" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Student ID</label>
+                    <input type="text" id="person-student-id" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
+                </div>
+                <div class="flex justify-end gap-3 mt-8">
+                    <button type="button" onclick="closePersonModal()" class="px-6 py-2.5 text-gray-500 font-bold hover:text-brand-red transition-colors">Cancel</button>
+                    <button type="submit" id="person-submit-btn" class="px-8 py-2.5 bg-brand-dark text-white rounded-xl font-black hover:bg-brand-blue transition-all shadow-lg">Save Person</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal for Bulk Import -->
+    <div id="bulk-import-modal" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 border border-white/20">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-black text-brand-dark">Bulk Import People</h3>
+                <button onclick="closeBulkImportModal()" class="text-gray-400 hover:text-brand-red transition-colors">
+                    <i data-lucide="x" class="w-8 h-8"></i>
+                </button>
+            </div>
+            <form id="bulk-import-form" class="space-y-5">
+                <div>
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Paste Names</label>
+                    <textarea id="bulk-import-text" required rows="8" placeholder="Paste names here, one per line...&#10;e.g.&#10;John Doe&#10;Jane Smith&#10;Bob Wilson&#10;&#10;Or with comma/tab separated fields:&#10;John Doe, john@email.com, 555-0100, STU001" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 text-sm focus:ring-brand-blue focus:border-brand-blue outline-none transition-all font-mono"></textarea>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">Copy a column from Google Sheets and paste here. One name per line, or Name, Email, Phone, Student ID</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-brand-dark mb-1">Register for Project (optional)</label>
+                    <select id="bulk-import-project" class="block w-full border-2 border-gray-100 rounded-xl bg-gray-50 p-3 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all">
+                        <option value="">Just import people</option>
+                    </select>
+                </div>
+                <div id="bulk-import-result" class="hidden bg-green-50 border border-green-200 rounded-xl p-4 text-sm font-bold text-green-700"></div>
+                <div class="flex justify-end gap-3 mt-8">
+                    <button type="button" onclick="closeBulkImportModal()" class="px-6 py-2.5 text-gray-500 font-bold hover:text-brand-red transition-colors">Cancel</button>
+                    <button type="submit" class="px-8 py-2.5 bg-brand-blue text-white rounded-xl font-black hover:opacity-90 transition-all shadow-lg">Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal for Project Attendance -->
+    <div id="attendance-modal" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-8 border border-white/20 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 id="attendance-project-name" class="text-2xl font-black text-brand-dark">Attendance Sheet</h3>
+                    <p class="text-xs font-bold text-brand-blue uppercase tracking-widest mt-1">Track who showed up</p>
+                </div>
+                <button onclick="closeAttendanceModal()" class="text-gray-400 hover:text-brand-red transition-colors">
+                    <i data-lucide="x" class="w-8 h-8"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Left: Add People -->
+                <div class="space-y-4">
+                    <div class="bg-brand-dark/5 p-6 rounded-2xl border border-brand-dark/10">
+                        <h4 class="text-sm font-black text-brand-dark uppercase tracking-widest mb-4">Quick Add Attendees</h4>
+                        <form id="attendance-bulk-form" class="space-y-3">
+                            <input type="hidden" id="attendance-project-id">
+                            <textarea id="attendance-bulk-text" required rows="5" placeholder="Paste names, one per line..." class="block w-full border-2 border-gray-100 rounded-xl bg-white p-3 text-sm focus:ring-brand-blue focus:border-brand-blue outline-none transition-all font-mono"></textarea>
+                            <button type="submit" class="w-full py-2.5 bg-brand-blue text-white rounded-xl font-black text-sm hover:opacity-90 transition-all shadow-md">
+                                Add & Register
+                            </button>
+                        </form>
+                    </div>
+                    <div id="attendance-summary" class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm text-center">
+                        <p class="text-sm font-bold text-gray-500">Attendance Summary</p>
+                        <div class="flex justify-center gap-8 mt-2">
+                            <div>
+                                <p id="att-count-present" class="text-3xl font-black text-green-600">0</p>
+                                <p class="text-[10px] font-bold text-gray-400 uppercase">Present</p>
+                            </div>
+                            <div>
+                                <p id="att-count-total" class="text-3xl font-black text-brand-dark">0</p>
+                                <p class="text-[10px] font-bold text-gray-400 uppercase">Registered</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Attendance List -->
+                <div>
+                    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                        <div class="p-3 border-b border-gray-50">
+                            <div class="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-xl border border-gray-100">
+                                <i data-lucide="search" class="w-4 h-4 text-gray-400"></i>
+                                <input type="text" id="attendance-search" placeholder="Search names..." class="bg-transparent outline-none text-sm w-full" oninput="filterAttendance()">
+                            </div>
+                        </div>
+                        <table class="w-full text-left">
+                            <thead class="bg-brand-dark/5">
+                                <tr>
+                                    <th class="px-4 py-3 text-[10px] font-black text-brand-dark uppercase tracking-widest">Name</th>
+                                    <th class="px-4 py-3 text-[10px] font-black text-brand-dark uppercase tracking-widest text-center">Present</th>
+                                    <th class="px-4 py-3"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-list-body" class="divide-y divide-gray-50">
+                                <!-- Attendance rows will be injected here -->
+                            </tbody>
+                        </table>
+                        <div id="no-attendance-msg" class="hidden p-12 text-center text-gray-400 font-bold">
+                            No attendees registered yet. Paste names on the left to add people.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Image Preview Overlay -->
     <div id="receipt-preview" class="fixed inset-0 bg-black/90 hidden z-[60] flex items-center justify-center p-4 cursor-zoom-out" onclick="this.classList.add('hidden')">
         <img id="preview-img" src="" alt="Receipt Preview" class="max-w-full max-h-full rounded-lg shadow-2xl">
     </div>
 
-    <script src="/static/script.js?v=1.6"></script>
+    <script src="/static/script.js?v=1.9"></script>
     <script>lucide.createIcons();</script>
 </body>
 </html>
