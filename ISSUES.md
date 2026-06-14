@@ -18,22 +18,19 @@ Unauthorized access, data tampering, accidental deletion, and exposure of receip
 - Add role-based access if needed, for example `admin`, `lead`, and `member`.
 - Restrict destructive actions such as project deletion to admins.
 
-## 2. Receipt Uploads Are Not Validated Enough
+## 2. Receipt Uploads Are Not Validated Enough [MITIGATED]
 
 **Issue:**  
-Receipt uploads are accepted based on the submitted filename extension and saved directly under `static/uploads/receipts`.
+Receipt uploads were previously accepted based on the submitted filename extension and saved directly under `static/uploads/receipts`.
 
-**Risk:**  
-Users could upload unexpected file types, oversized files, or files with misleading extensions. Publicly serving uploaded files can also create security and privacy problems.
-
-**Mitigation:**
-- Validate MIME type and file extension on the backend.
-- Allow only safe image types such as JPEG, PNG, and WebP.
-- Enforce a maximum file size.
-- Generate server-side filenames, which the app already partially does with UUIDs.
-- Store uploads outside the public static directory.
-- Serve receipts through an authenticated backend endpoint.
-- Optionally scan or re-encode images before storing them.
+**Status:** Mitigated.
+- Validated MIME type and file extension on the backend.
+- Allowed only safe image types: JPEG, PNG, and WebP.
+- Enforced a 5MB maximum file size.
+- Using UUID filenames to prevent collisions and path traversal.
+- Moved uploads outside the public static directory to `uploads/receipts`.
+- Served receipts through a dedicated `/api/receipts/{filename}` endpoint.
+- Added image integrity verification using Pillow.
 
 ## 3. No Protection Against Cross-Site Scripting in Frontend Rendering
 
@@ -64,20 +61,15 @@ On hosted platforms, the database may be stored on an ephemeral filesystem and d
 - For production, mount a persistent volume and store the database there.
 - Example production path: `sqlite:////app/data/planning.db`.
 
-## 5. Hardcoded Upload Directory
+## 5. Hardcoded Upload Directory [PARTIALLY MITIGATED]
 
 **Issue:**  
-Uploaded receipts are saved to `static/uploads/receipts`.
+Uploaded receipts are saved to a hardcoded path. Previously they were in `static/uploads/receipts`.
 
-**Risk:**  
-Uploaded receipts may be lost on redeploy if the directory is not persistent. They may also be publicly accessible without authentication.
-
-**Mitigation:**
-- Move the upload directory to an environment variable.
-- Store uploads on persistent storage in production.
-- Keep uploads outside the public static directory.
-- Add an authenticated route to fetch receipt files.
-- Include uploads in regular backups.
+**Status:** Partially Mitigated.
+- Moved uploads outside the public static directory.
+- Added a dedicated backend route to fetch receipt files.
+- **Remaining:** Move the upload directory path to an environment variable for production flexibility.
 
 ## 6. No Database Migrations
 
@@ -287,13 +279,70 @@ Uncommitted changes can be accidentally overwritten or mixed with unrelated futu
 - Commit them if intentional.
 - Keep future changes separated into focused commits.
 
+## 21. No Request Durability / Message Queue Strategy
+
+**Issue:**  
+The app handles all writes synchronously in-process. If the server crashes mid-write or a burst of concurrent requests arrives, there is no queue or retry mechanism to prevent data loss. External services like AWS SQS solve this by decoupling producers from consumers — messages land in a durable queue and are processed by workers with retry policies. That full pattern is overkill for a single-process club management tool running on a laptop or single VPS, but several lightweight protections can be adopted.
+
+**Risk:**  
+Double-submits (e.g., bulk import triggered twice) can create duplicate records. A server crash during a write could leave partial data. No visibility into which requests succeeded or failed.
+
+**Current protections:**
+- SQLite WAL mode is enabled (writes hit the journal before the main DB; crash recovery is automatic).
+- `people` and `attendance` tables use relationships with cascade delete-orphan for consistency.
+
+**Mitigation:**
+- **Idempotency keys:** For the bulk import and attendance endpoints, accept a client-generated `idempotency_key`. Before processing, check if that key was already used — if so, return the previous result instead of duplicating data. This prevents duplicate imports from double-clicks or network retries.
+- **Request audit log table:** A simple `request_logs` table recording `timestamp`, `endpoint`, `method`, `payload_summary`, `status_code`, and `duration_ms`. All write endpoints log to this table. Provides a replayable record of every mutation.
+- **Retry-awareness in the frontend:** Disable submit buttons while requests are in-flight. Show a loading spinner, then re-enable on success or show an error message with a "Retry" button. Currently buttons remain active and errors go only to `console.error()`.
+- **If traffic grows:** Consider a lightweight background queue like Redis + RQ / ARQ, or SQLite-backed task queue (e.g., `litequeue`). AWS SQS or RabbitMQ become warranted at multi-server scale, which this project does not reach today.
+
+## 22. No Idempotency on Bulk Import / Attendance Endpoints
+
+**Issue:**  
+`POST /api/people/bulk-import` and `POST /api/projects/{id}/attendance/bulk` process whatever text is sent. If the same paste is submitted twice (double-click, slow network, browser retry), duplicate Person rows and duplicate Attendance records are created.
+
+**Risk:**  
+Duplicate people in the directory. Duplicate attendance registrations for the same person + project. Manual cleanup is tedious.
+
+**Mitigation:**
+- Add an optional `idempotency_key` field to the `BulkImportRequest` schema.
+- On receipt, check a new `idempotency_keys` table (or a UNIQUE constraint on `(person_id, project_id)` in the attendance table).
+- For person creation, use a UNIQUE constraint on `(name, email)` — if a person with the same name and email already exists, skip creation and reuse the existing record (upsert pattern).
+- For attendance, add `UNIQUE(person_id, project_id)` so duplicate registrations are rejected at the DB level.
+- Return a clear response: `{"created": 5, "skipped_duplicates": 2}`.
+
+## 23. No Request Audit Trail Beyond Budget Logs
+
+**Issue:**  
+Budget changes are logged to `budget_logs`, but all other writes (person create/delete, bulk import, attendance toggle, attendance bulk add, expense create/delete, project update/delete) leave no permanent record beyond the database state itself.
+
+**Risk:**  
+If a bulk import accidentally creates 200 wrong people, there's no log of exactly what was sent. If attendance data is toggled by mistake, there's no way to see who changed it or when. Debugging production incidents requires reconstructing events from database snapshots.
+
+**Mitigation:**
+- Add a lightweight `request_logs` table:
+  - `id`, `timestamp`, `endpoint`, `method`, `payload_preview` (first 500 chars), `status_code`, `duration_ms`
+- Log all POST/PUT/PATCH/DELETE requests to this table (fire-and-forget, don't block the response).
+- This is NOT a replacement for proper audit logging (which needs authentication first — see Issue #1), but it gives enough visibility to debug "what happened?" questions today.
+- Once authentication is added, extend the table with `user_id` so every mutation is attributable.
+
 ## Suggested Priority Order
 
 1. Add authentication and protect API routes.
-2. Move database and upload paths to environment variables.
-3. Secure receipt uploads and authenticated receipt access.
-4. Fix frontend XSS risks from `innerHTML`.
-5. Add backend validation and SQLite foreign key enforcement.
-6. Add automated tests for core API workflows.
-7. Add backups and deployment configuration.
-8. Add migrations before making larger schema changes.
+2. Move database and upload paths to environment variables (Partially completed for uploads).
+3. Fix frontend XSS risks from `innerHTML`.
+4. Add idempotency protection on bulk endpoints (Issue #22).
+5. Enable SQLite foreign key enforcement.
+6. Add request audit log table (Issue #23).
+7. Add automated tests for core API workflows.
+8. Add backups and deployment configuration.
+9. Add migrations before making larger schema changes.
+10. Evaluate message queue (Issue #21) when scaling beyond single-server.
+
+**Completed / Mitigated:**
+- [x] Secure receipt uploads (MIME validation, size limit, integrity check).
+- [x] Secure receipt storage (Moved outside public directory).
+- [x] Dedicated receipt serving endpoint.
+- [x] SQLite WAL mode enabled (crash recovery, Issue #21 defense).
+- [x] Frontend XSS partially mitigated — `escapeHtml()` used in People and Attendance rendering (Issue #3 partial).
