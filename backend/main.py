@@ -615,6 +615,29 @@ def read_people(db: Session = Depends(get_db)):
 
 @app.post("/api/people/", response_model=Person)
 def create_person(person: PersonCreate, db: Session = Depends(get_db)):
+    # Check for existing person by email or student_id
+    existing = None
+    if person.email:
+        existing = db.query(models.Person).filter(models.Person.email == person.email).first()
+    if not existing and person.student_id:
+        existing = db.query(models.Person).filter(models.Person.student_id == person.student_id).first()
+    if existing:
+        # Update fields if new values provided
+        if person.name:
+            existing.name = person.name
+        if person.phone:
+            existing.phone = person.phone
+        if person.email and not existing.email:
+            existing.email = person.email
+        if person.student_id and not existing.student_id:
+            existing.student_id = person.student_id
+        db.commit()
+        db.refresh(existing)
+        existing.project_count = len(existing.attendances)
+        existing.attended_count = sum(1 for a in existing.attendances if a.attended)
+        existing.project_ids = [a.project_id for a in existing.attendances]
+        return existing
+
     db_person = models.Person(**person.model_dump())
     db.add(db_person)
     db.commit()
@@ -648,57 +671,109 @@ def delete_person(person_id: int, db: Session = Depends(get_db)):
     return {"message": "Person and associated attendance records removed"}
 
 # Bulk Import People
-@app.post("/api/people/bulk-import")
-def bulk_import_people(data: BulkImportRequest, db: Session = Depends(get_db)):
-    """Parse pasted text (one name per line, or CSV with name,email,phone,student_id)
-    and create Person records. Optionally register them for a project."""
-    lines = [line.strip() for line in data.text.strip().split("\n") if line.strip()]
-    created = []
-    skipped = 0
-
-    for line in lines:
-        # Detect delimiter: tab or comma
-        if "\t" in line:
-            parts = [p.strip() for p in line.split("\t")]
-        elif "," in line:
-            parts = [p.strip() for p in line.split(",")]
+def _parse_person_line(line: str):
+    """Parse a single line from pasted text into (name, email, phone, student_id).
+    Supports tab, comma, or space-delimited (with email detection) formats."""
+    # Tab-delimited
+    if "\t" in line:
+        parts = [p.strip() for p in line.split("\t")]
+    # Comma-delimited
+    elif "," in line:
+        parts = [p.strip() for p in line.split(",")]
+    else:
+        # Space-delimited: try to split by email detection
+        tokens = line.strip().split()
+        # Heuristic: if a token looks like an email, split around it
+        email_token = None
+        for i, tok in enumerate(tokens):
+            if "@" in tok and "." in tok.split("@")[-1]:
+                email_token = i
+                break
+        if email_token is not None:
+            name = " ".join(tokens[:email_token])
+            rest = tokens[email_token + 1:]
+            parts = [name, tokens[email_token]] + rest
         else:
             parts = [line.strip()]
 
-        name = parts[0] if parts else line.strip()
+    name = parts[0] if parts else line.strip()
+    email = parts[1] if len(parts) > 1 and parts[1] else None
+    phone = parts[2] if len(parts) > 2 and parts[2] else None
+    student_id = parts[3] if len(parts) > 3 and parts[3] else None
+    return name, email, phone, student_id
+
+@app.post("/api/people/bulk-import")
+def bulk_import_people(data: BulkImportRequest, db: Session = Depends(get_db)):
+    """Parse pasted text (one name per line, or CSV with name,email,phone,student_id)
+    and create or update Person records. Optionally register them for a project.
+    Duplicates are detected by email or student_id."""
+    lines = [line.strip() for line in data.text.strip().split("\n") if line.strip()]
+    created = []
+    matched = 0
+    skipped = 0
+
+    for line in lines:
+        name, email, phone, student_id = _parse_person_line(line)
         if not name:
             skipped += 1
             continue
 
-        email = parts[1] if len(parts) > 1 and parts[1] else None
-        phone = parts[2] if len(parts) > 2 and parts[2] else None
-        student_id = parts[3] if len(parts) > 3 and parts[3] else None
+        # Try to find existing person by email or student_id
+        if email:
+            existing = db.query(models.Person).filter(models.Person.email == email).first()
+        if not existing and student_id:
+            existing = db.query(models.Person).filter(models.Person.student_id == student_id).first()
 
-        db_person = models.Person(
-            name=name,
-            email=email,
-            phone=phone,
-            student_id=student_id
-        )
-        db.add(db_person)
-        db.flush()
+        if existing:
+            # Update fields if new values provided
+            if name:
+                existing.name = name
+            if phone:
+                existing.phone = phone
+            if email and not existing.email:
+                existing.email = email
+            if student_id and not existing.student_id:
+                existing.student_id = student_id
+            person = existing
+            matched += 1
+        else:
+            person = models.Person(
+                name=name,
+                email=email,
+                phone=phone,
+                student_id=student_id
+            )
+            db.add(person)
+            db.flush()
+            created.append({"id": person.id, "name": person.name})
 
         # If a project is specified, register attendance
         if data.project_id:
-            project = db.query(models.Project).filter(models.Project.id == data.project_id).first()
-            if project:
-                db_attendance = models.Attendance(
-                    person_id=db_person.id,
-                    project_id=data.project_id
-                )
-                db.add(db_attendance)
-
-        created.append({"id": db_person.id, "name": db_person.name})
+            project_exists = db.query(models.Project).filter(models.Project.id == data.project_id).first()
+            if project_exists:
+                # Check for duplicate attendance
+                existing_att = db.query(models.Attendance).filter(
+                    models.Attendance.person_id == person.id,
+                    models.Attendance.project_id == data.project_id
+                ).first()
+                if not existing_att:
+                    db_attendance = models.Attendance(
+                        person_id=person.id,
+                        project_id=data.project_id
+                    )
+                    db.add(db_attendance)
 
     db.commit()
+    msg_parts = []
+    if created:
+        msg_parts.append(f"Imported {len(created)} new people")
+    if matched:
+        msg_parts.append(f"Updated {matched} existing people")
+    if skipped:
+        msg_parts.append(f"Skipped {skipped} empty lines")
     return {
-        "message": f"Imported {len(created)} people" + (f", skipped {skipped}" if skipped else ""),
-        "count": len(created),
+        "message": ", ".join(msg_parts) if msg_parts else "No changes made",
+        "count": len(created) + matched,
         "people": created
     }
 
@@ -768,45 +843,67 @@ def bulk_add_attendance(
     data: BulkImportRequest,
     db: Session = Depends(get_db)
 ):
-    """Bulk import people from pasted text AND register them for this project in one call."""
+    """Bulk import people from pasted text AND register them for this project in one call.
+    Duplicates are detected by email or student_id — the person record is reused."""
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
     lines = [line.strip() for line in data.text.strip().split("\n") if line.strip()]
     added = 0
+    already_registered = 0
 
     for line in lines:
-        if "\t" in line:
-            parts = [p.strip() for p in line.split("\t")]
-        elif "," in line:
-            parts = [p.strip() for p in line.split(",")]
-        else:
-            parts = [line.strip()]
-
-        name = parts[0] if parts else line.strip()
+        name, email, phone, student_id = _parse_person_line(line)
         if not name:
             continue
 
-        email = parts[1] if len(parts) > 1 and parts[1] else None
-        phone = parts[2] if len(parts) > 2 and parts[2] else None
-        student_id = parts[3] if len(parts) > 3 and parts[3] else None
+        # Try to find existing person by email or student_id
+        existing = None
+        if email:
+            existing = db.query(models.Person).filter(models.Person.email == email).first()
+        if not existing and student_id:
+            existing = db.query(models.Person).filter(models.Person.student_id == student_id).first()
 
-        db_person = models.Person(
-            name=name,
-            email=email,
-            phone=phone,
-            student_id=student_id
-        )
-        db.add(db_person)
-        db.flush()
+        if existing:
+            # Update fields if new values provided
+            if name:
+                existing.name = name
+            if phone:
+                existing.phone = phone
+            if email and not existing.email:
+                existing.email = email
+            if student_id and not existing.student_id:
+                existing.student_id = student_id
+            person = existing
+        else:
+            person = models.Person(
+                name=name,
+                email=email,
+                phone=phone,
+                student_id=student_id
+            )
+            db.add(person)
+            db.flush()
 
-        db_attendance = models.Attendance(person_id=db_person.id, project_id=project_id)
+        # Check for duplicate attendance
+        existing_att = db.query(models.Attendance).filter(
+            models.Attendance.person_id == person.id,
+            models.Attendance.project_id == project_id
+        ).first()
+        if existing_att:
+            already_registered += 1
+            continue
+
+        db_attendance = models.Attendance(person_id=person.id, project_id=project_id)
         db.add(db_attendance)
         added += 1
 
     db.commit()
-    return {"message": f"Added {added} people to project attendance", "count": added}
+    msg = f"Added {added} people to project attendance"
+    if already_registered:
+        msg += f", {already_registered} already registered"
+    return {"message": msg, "count": added}
 
 @app.put("/api/attendance/{attendance_id}")
 def update_attendance(attendance_id: int, data: AttendanceBase, db: Session = Depends(get_db)):

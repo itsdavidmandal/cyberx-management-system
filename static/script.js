@@ -1000,9 +1000,15 @@ function renderPeople() {
     const noMsg = document.getElementById('no-people-msg');
     const searchInput = document.getElementById('people-search');
     const filterInput = document.getElementById('people-project-filter');
+    const bulkBar = document.getElementById('people-bulk-bar');
+    const selectAll = document.getElementById('people-select-all');
 
     if (!tbody) return;
     tbody.innerHTML = '';
+
+    // Reset select-all state — individual checkboxes will be recreated
+    if (selectAll) selectAll.checked = false;
+    if (bulkBar) bulkBar.classList.add('hidden');
 
     const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
     const projectFilter = filterInput ? filterInput.value : '';
@@ -1043,6 +1049,10 @@ function renderPeople() {
         }
 
         tr.innerHTML = `
+            <td class="px-4 py-4 w-10">
+                <input type="checkbox" data-person-id="${p.id}" onchange="updateBulkBar()"
+                    class="people-checkbox w-4 h-4 rounded border-gray-300 text-brand-red focus:ring-brand-red cursor-pointer">
+            </td>
             <td class="px-6 py-4">
                 <div class="font-bold text-brand-dark">${escapeHtml(p.name)}</div>
             </td>
@@ -1074,6 +1084,60 @@ function renderPeople() {
     else noMsg.classList.add('hidden');
 
     lucide.createIcons();
+}
+
+function toggleSelectAll() {
+    const selectAll = document.getElementById('people-select-all');
+    const checkboxes = document.querySelectorAll('.people-checkbox');
+    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+    updateBulkBar();
+}
+
+function updateBulkBar() {
+    const bulkBar = document.getElementById('people-bulk-bar');
+    const countSpan = document.getElementById('people-selected-count');
+    const checked = document.querySelectorAll('.people-checkbox:checked');
+    // Also sync select-all
+    const selectAll = document.getElementById('people-select-all');
+    const all = document.querySelectorAll('.people-checkbox');
+    if (selectAll) {
+        selectAll.checked = all.length > 0 && checked.length === all.length;
+    }
+    if (checked.length === 0) {
+        bulkBar.classList.add('hidden');
+    } else {
+        countSpan.textContent = `${checked.length} selected`;
+        bulkBar.classList.remove('hidden');
+    }
+}
+
+async function deleteSelectedPeople() {
+    const checked = document.querySelectorAll('.people-checkbox:checked');
+    const ids = Array.from(checked).map(cb => parseInt(cb.dataset.personId));
+    if (ids.length === 0) return;
+
+    if (!confirm(`Permanently delete ${ids.length} selected people? Their attendance records will also be removed.`)) return;
+
+    // Delete one by one, collect results
+    let deleted = 0;
+    let errors = 0;
+    for (const id of ids) {
+        try {
+            const response = await fetch(`/api/people/${id}`, { method: 'DELETE' });
+            if (response.ok) deleted++;
+            else errors++;
+        } catch (e) {
+            errors++;
+        }
+    }
+
+    fetchData();
+
+    if (errors === 0) {
+        alert(`Successfully deleted ${deleted} people.`);
+    } else {
+        alert(`Deleted ${deleted} people, ${errors} failed.`);
+    }
 }
 
 function escapeHtml(text) {
@@ -1212,7 +1276,8 @@ async function openAttendanceModal(projectId) {
     currentAttendanceProjectId = projectId;
     document.getElementById('attendance-project-id').value = projectId;
     document.getElementById('attendance-project-name').textContent = project.name + ' — Attendance';
-    document.getElementById('attendance-bulk-text').value = '';
+    document.getElementById('attendance-bulk-names').value = '';
+    document.getElementById('attendance-bulk-emails').value = '';
     // Clear search
     const searchInput = document.getElementById('attendance-search');
     if (searchInput) searchInput.value = '';
@@ -1319,20 +1384,35 @@ async function removeAttendance(attendanceId) {
 document.getElementById('attendance-bulk-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const projectId = document.getElementById('attendance-project-id').value;
-    const text = document.getElementById('attendance-bulk-text').value;
+    const namesText = document.getElementById('attendance-bulk-names').value;
+    const emailsText = document.getElementById('attendance-bulk-emails').value;
 
-    if (!text.trim()) return;
+    if (!namesText.trim()) return;
+
+    // Zip names and emails row-by-row
+    const names = namesText.trim().split('\n').filter(l => l.trim());
+    const emails = emailsText.trim() ? emailsText.trim().split('\n').filter(l => l.trim()) : [];
+
+    // Build combined text: "Name, email" per line
+    const combined = names.map((name, i) => {
+        const n = name.trim();
+        const e = (emails[i] || '').trim();
+        return e ? `${n}, ${e}` : n;
+    }).join('\n');
+
+    if (!combined.trim()) return;
 
     try {
         const response = await fetch(`/api/projects/${projectId}/attendance/bulk`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text })
+            body: JSON.stringify({ text: combined })
         });
 
         if (response.ok) {
             const result = await response.json();
-            document.getElementById('attendance-bulk-text').value = '';
+            document.getElementById('attendance-bulk-names').value = '';
+            document.getElementById('attendance-bulk-emails').value = '';
             await fetchAttendance(projectId);
             fetchData(); // Refresh people list
         }

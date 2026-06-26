@@ -199,9 +199,18 @@
                     </select>
                 </div>
 
+                <div id="people-bulk-bar" class="hidden bg-brand-red/5 px-6 py-3 border-b border-brand-red/10 flex items-center justify-between">
+                    <span id="people-selected-count" class="text-sm font-bold text-brand-red">0 selected</span>
+                    <button onclick="deleteSelectedPeople()" class="flex items-center gap-2 bg-brand-red text-white px-4 py-1.5 rounded-lg font-black text-xs hover:bg-red-700 transition-all shadow-sm">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete Selected
+                    </button>
+                </div>
                 <table class="w-full text-left">
                     <thead class="bg-brand-dark/5">
                         <tr>
+                            <th class="px-4 py-4 w-10">
+                                <input type="checkbox" id="people-select-all" onchange="toggleSelectAll()" class="w-4 h-4 rounded border-gray-300 text-brand-red focus:ring-brand-red cursor-pointer">
+                            </th>
                             <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Name</th>
                             <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Contact</th>
                             <th class="px-6 py-4 text-[10px] font-black text-brand-dark uppercase tracking-widest">Student ID</th>
@@ -554,7 +563,17 @@
                         <h4 class="text-sm font-black text-brand-dark uppercase tracking-widest mb-4">Quick Add Attendees</h4>
                         <form id="attendance-bulk-form" class="space-y-3">
                             <input type="hidden" id="attendance-project-id">
-                            <textarea id="attendance-bulk-text" required rows="5" placeholder="Paste names, one per line..." class="block w-full border-2 border-gray-100 rounded-xl bg-white p-3 text-sm focus:ring-brand-blue focus:border-brand-blue outline-none transition-all font-mono"></textarea>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Names</label>
+                                    <textarea id="attendance-bulk-names" required rows="6" placeholder="Paste names, one per line..." class="block w-full border-2 border-gray-100 rounded-xl bg-white p-3 text-sm focus:ring-brand-blue focus:border-brand-blue outline-none transition-all font-mono"></textarea>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Emails</label>
+                                    <textarea id="attendance-bulk-emails" rows="6" placeholder="Paste emails, one per line..." class="block w-full border-2 border-gray-100 rounded-xl bg-white p-3 text-sm focus:ring-brand-blue focus:border-brand-blue outline-none transition-all font-mono"></textarea>
+                                </div>
+                            </div>
+                            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Names and emails are matched row-by-row. You can also paste names only.</p>
                             <button type="submit" class="w-full py-2.5 bg-brand-blue text-white rounded-xl font-black text-sm hover:opacity-90 transition-all shadow-md">
                                 Add & Register
                             </button>
@@ -610,7 +629,7 @@
         <img id="preview-img" src="" alt="Receipt Preview" class="max-w-full max-h-full rounded-lg shadow-2xl">
     </div>
 
-    <script src="/static/script.js?v=1.9"></script>
+    <script src="/static/script.js?v=2.1"></script>
     <script>lucide.createIcons();</script>
 </body>
 </html>
