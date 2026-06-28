@@ -1,185 +1,56 @@
-# CyberX Planning & Management System
+# CyberX Management System 🛡️
 
-A centralized project and activity management platform designed for the **CyberX** college cybersecurity club. This platform helps club leads and members organize long-running projects, track complex finances, and manage tasks efficiently.
+> A centralized command center for the CyberX college cybersecurity club — bringing event coordination, budget control, attendance tracking, and people management into one clean, real-time platform.
 
-## 🚀 Key Features
+---
 
-### 📂 Project & Task Management
-- **Hierarchical Structure**: Organize work into high-level Projects with nested individual Tasks.
-- **Jira-Style Kanban**: Interactive board with horizontal **Swimlanes** grouped by project.
-- **Drag-and-Drop**: Seamlessly move tasks between stages (Ideation, To-Do, In Progress, Done).
-- **Project Timelines**: Set clear Start and End dates for club initiatives.
+## What It Does
 
-### 💰 Finance & Budgeting
-- **Project Ledgers**: Dedicated financial tracking for every project.
-- **Expense Logging**: Record every purchase with name, amount, and date.
-- **Proof of Purchase**: Upload and store bill/receipt images directly on the platform.
-- **Budget History**: Automatically logs every budget adjustment for full financial transparency.
-- **Real-time Tracking**: Visual budget meters showing percentage of funds spent.
+**Kanban Command Board** — Drag-and-drop task management across projects. Each project (event/workshop) gets its own swimlane with To-Do / In Progress / Done columns. Finished projects? Archive them with one click — they tuck away in a collapsible section, data intact.
 
-### 📊 Professional Reporting
-- **PDF Audit Reports**: Generate detailed project reports including:
-    - Financial summaries and budget revision history.
-    - Itemized expense tables.
-    - **Appendix of Proofs**: Automatic embedding of all uploaded receipt images.
+**Live Attendance Tracking** — Pull up any event, see exactly who registered, check them in live, and watch the attendance percentage tick in real-time. Export a clean PDF report with full name/email/presence table and summary stats.
 
-### 🎨 Custom Branding
-- Fully themed with CyberX club colors (#1c5070, #ae0001, #44a6cc).
-- Professional dark-themed UI with glass-morphism effects.
+**Budget & Finance Ledger** — Log expenses with receipt uploads (image validation built in). Every budget revision is timestamped for an audit trail. Generate a full financial PDF report with expense breakdown, budget history, and embedded receipt images.
 
-## 🛠️ Tech Stack
-- **Backend:** FastAPI (Python)
-- **Database:** SQLite with SQLAlchemy (WAL mode enabled for high concurrency)
-- **Reporting:** fpdf2
-- **Frontend:** Vanilla JS, Tailwind CSS, Lucide Icons
+**People Directory** — Single source of truth for every member. Bulk import from Google Sheets (name, email, phone, student ID) — duplicates are detected and merged automatically. Filter by project, see attendance history per person, bulk delete.
 
-## 🗄️ Database Schema
+---
 
-The system uses a relational SQLite database. Below are the table definitions:
+## Key Technologies
 
-### 1. `projects`
-Stores high-level club initiatives and their primary budgets.
+| Layer | Stack |
+|-------|-------|
+| Backend | **FastAPI** (Python 3.12) |
+| ORM | **SQLAlchemy** |
+| Database | **SQLite** |
+| Frontend | **Vanilla JS** + **Tailwind CSS** |
+| PDF | **FPDF** |
+| Icons | **Lucide** |
+| Auth | N/A (club-internal deployment) |
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | Integer | Primary Key (Auto-increment) |
-| `name` | String | Project name (Indexed) |
-| `description` | Text | Detailed project overview |
-| `start_date` | Date | Projected start date (Nullable) |
-| `end_date` | Date | Projected deadline (Nullable) |
-| `budget` | Float | Total allocated funds (Default: 0.0) |
+---
 
-### 2. `events` (Tasks)
-Individual tasks or events linked to projects.
+## Quick Start
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | Integer | Primary Key (Auto-increment) |
-| `title` | String | Task title (Indexed) |
-| `description` | Text | Task details |
-| `date` | Date | Scheduled date |
-| `budget` | Float | Specific budget allocation (Default: 0.0) |
-| `status` | String | Current stage (e.g., To-Do, In Progress, Done) |
-| `completed` | Boolean | Completion flag (Default: False) |
-| `project_id` | Integer | Foreign Key -> `projects.id` |
-
-### 3. `expenses`
-Financial expenditures recorded against projects.
-
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | Integer | Primary Key (Auto-increment) |
-| `name` | String | Expense name/description (Indexed) |
-| `amount` | Float | Cost of the expense |
-| `date` | Date | Date of expenditure |
-| `receipt_path` | String | Local path to the uploaded receipt image |
-| `project_id` | Integer | Foreign Key -> `projects.id` |
-
-### 4. `budget_logs`
-Automated audit trail for all budget adjustments.
-
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | Integer | Primary Key (Auto-increment) |
-| `amount` | Float | The updated budget amount |
-| `change_date` | DateTime | Timestamp of the modification (Auto-generated) |
-| `project_id` | Integer | Foreign Key -> `projects.id` |
-
-### 5. `guests`
-Tracking for people invited to specific projects.
-
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | Integer | Primary Key (Auto-increment) |
-| `name` | String | Guest full name (Indexed) |
-| `email` | String | Contact email (Nullable) |
-| `phone` | String | Contact phone number (Nullable) |
-| `organization` | String | Guest's organization or role (Nullable) |
-| `status` | String | RSVP Status (Pending, Confirmed, Declined, Attended) |
-| `project_id` | Integer | Foreign Key -> `projects.id` (Nullable) |
-
-### Relationships & Mapping
-
-The database follows a **One-to-Many (1:N)** relationship model centered around the `projects` table:
-
-- **Projects ↔ Tasks (`events`)**: A single project can have multiple tasks. Linked via `events.project_id`.
-- **Projects ↔ Expenses**: A single project tracks multiple expenses. Linked via `expenses.project_id`.
-- **Projects ↔ Budget Logs**: A single project maintains a history of budget changes. Linked via `budget_logs.project_id`.
-- **Projects ↔ Guests**: A single project can have multiple invitees. Linked via `guests.project_id`.
-
-```mermaid
-erDiagram
-    projects ||--o{ events : "has"
-    projects ||--o{ expenses : "tracks"
-    projects ||--o{ budget_logs : "records"
-    projects ||--o{ guests : "invites"
-    
-    projects {
-        int id PK
-        string name
-        float budget
-    }
-    events {
-        int id PK
-        int project_id FK
-        string title
-    }
-    expenses {
-        int id PK
-        int project_id FK
-        float amount
-    }
-    budget_logs {
-        int id PK
-        int project_id FK
-        float amount
-    }
-    guests {
-        int id PK
-        int project_id FK
-        string name
-        string status
-    }
-```
-
-## 🏁 Getting Started
-
-### Prerequisites
-- Python 3.12+
-- `python-multipart` (for receipt uploads)
-
-### Installation
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/itsdavidmandal/cyberx-management-system.git
-   cd cyberx-management-system
-   ```
-
-2. **Set up the virtual environment:**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Linux/macOS
-   ```
-
-3. **Install Dependencies:**
-   ```bash
-   pip install -r backend/requirements.txt
-   ```
-
-### Running the App
-Use the provided run script:
 ```bash
-./run.sh
-```
-Or manually:
-```bash
-python3 -m uvicorn backend.main:app --reload
+git clone https://github.com/itsdavidmandal/cyberx-management-system.git
+cd cyberx-management-system
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
 
-Open: `http://127.0.0.1:8000`
+---
 
-## 📂 Project Structure
-- `backend/`: API logic, SQLAlchemy models, and database management.
-- `static/`: Frontend application and styling.
-- `static/uploads/`: Secure storage for uploaded receipts (git-ignored).
-- `planning.db`: SQLite database optimized with WAL mode.
+## Screenshots
+
+_(Add your screenshots here)_
+
+---
+
+That description for LinkedIn:
+
+> Built a full-stack event command center for my college's cybersecurity club — a live Kanban board with drag-and-drop task management, real-time attendance tracking with percentage counters, automated PDF financial reports with receipt embedding, bulk member import with smart duplicate detection, and one-click project archiving. Think Trello + a club treasurer in one dashboard.
+>
+> **Tech:** FastAPI, SQLAlchemy, SQLite, Vanilla JS, Tailwind CSS, FPDF.
+>
