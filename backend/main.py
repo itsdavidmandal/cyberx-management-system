@@ -61,6 +61,7 @@ class ProjectBase(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     budget: float = 0.0
+    archived: bool = False
 
 class ProjectCreate(ProjectBase):
     pass
@@ -212,7 +213,7 @@ def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
 
 @app.get("/api/projects/", response_model=List[Project])
 def read_projects(db: Session = Depends(get_db)):
-    return db.query(models.Project).all()
+    return db.query(models.Project).order_by(models.Project.archived.asc(), models.Project.name.asc()).all()
 
 @app.put("/api/projects/{project_id}", response_model=Project)
 def update_project(project_id: int, project: ProjectUpdate, db: Session = Depends(get_db)):
@@ -260,6 +261,20 @@ def delete_project(project_id: int, db: Session = Depends(get_db)):
     db.delete(db_project)
     db.commit()
     return {"message": "Project deleted, tasks unassigned, and expenses cleared"}
+
+@app.patch("/api/projects/{project_id}/archive")
+def toggle_project_archive(project_id: int, db: Session = Depends(get_db)):
+    db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not db_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    db_project.archived = not db_project.archived
+    db.commit()
+    db.refresh(db_project)
+    return {
+        "id": db_project.id,
+        "archived": db_project.archived,
+        "message": "Project archived" if db_project.archived else "Project unarchived"
+    }
 
 # Expenses
 @app.post("/api/projects/{project_id}/expenses/", response_model=Expense)
@@ -404,6 +419,74 @@ def generate_project_report(project_id: int, db: Session = Depends(get_db)):
         io.BytesIO(pdf.output()),
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=Project_Report_{project_id}.pdf"}
+    )
+
+# Attendance Report — PDF
+@app.get("/api/projects/{project_id}/attendance/report")
+def generate_attendance_report(project_id: int, db: Session = Depends(get_db)):
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    records = db.query(models.Attendance).filter(
+        models.Attendance.project_id == project_id
+    ).order_by(models.Attendance.registered_at.asc()).all()
+
+    total_registered = len(records)
+    total_present = sum(1 for r in records if r.attended)
+    percent = round((total_present / total_registered * 100)) if total_registered > 0 else 0
+
+    pdf = FPDF()
+    pdf.add_page()
+
+    # Header
+    pdf.set_font("helvetica", "B", 24)
+    pdf.set_text_color(28, 80, 112)
+    pdf.cell(0, 20, "Attendance Report", ln=True, align="C")
+
+    pdf.set_font("helvetica", "B", 16)
+    pdf.set_text_color(56, 56, 56)
+    pdf.cell(0, 10, project.name, ln=True, align="C")
+
+    pdf.set_font("helvetica", "", 10)
+    pdf.cell(0, 10, f"Timeline: {project.start_date or 'N/A'} to {project.end_date or 'N/A'}", ln=True, align="C")
+    pdf.ln(5)
+
+    # Summary section
+    pdf.set_fill_color(240, 240, 240)
+    pdf.set_font("helvetica", "B", 12)
+    pdf.cell(0, 10, "  Attendance Summary", 0, 1, "L", True)
+
+    pdf.set_font("helvetica", "", 11)
+    pdf.cell(90, 10, f"Total Registered: {total_registered}", 0, 0)
+    pdf.cell(90, 10, f"Total Present: {total_present}", 0, 1)
+    pdf.set_font("helvetica", "B", 12)
+    pdf.set_text_color(28, 80, 112)
+    pdf.cell(0, 10, f"Attendance Rate: {percent}%", 0, 1)
+    pdf.set_text_color(56, 56, 56)
+    pdf.ln(8)
+
+    # Table — Registered
+    pdf.set_fill_color(28, 80, 112)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(10, 10, " #", 1, 0, "C", True)
+    pdf.cell(70, 10, " Name", 1, 0, "L", True)
+    pdf.cell(70, 10, " Email", 1, 0, "L", True)
+    pdf.cell(40, 10, " Present", 1, 1, "C", True)
+
+    pdf.set_text_color(56, 56, 56)
+    pdf.set_font("helvetica", "", 10)
+    for i, rec in enumerate(records, 1):
+        pdf.cell(10, 10, f" {i}", 1, 0, "C")
+        pdf.cell(70, 10, f" {rec.person.name if rec.person else 'Unknown'}", 1)
+        pdf.cell(70, 10, f" {rec.person.email if rec.person and rec.person.email else '-'}", 1)
+        pdf.cell(40, 10, " Yes" if rec.attended else " No", 1, 1, "C")
+
+    return StreamingResponse(
+        io.BytesIO(pdf.output()),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=Attendance_Report_{project_id}.pdf"}
     )
 
 # Ideas

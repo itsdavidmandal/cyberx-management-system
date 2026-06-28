@@ -12,6 +12,7 @@ class Project(Base):
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
     budget = Column(Float, default=0.0)
+    archived = Column(Boolean, default=False)
 
     tasks = relationship("Task", back_populates="project")
     expenses = relationship("Expense", back_populates="project")

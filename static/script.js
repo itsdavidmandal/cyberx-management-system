@@ -422,6 +422,11 @@ function downloadProjectReport() {
     window.location.href = `/api/projects/${projectId}/report`;
 }
 
+function downloadAttendanceReport() {
+    if (!currentAttendanceProjectId) return;
+    window.location.href = `/api/projects/${currentAttendanceProjectId}/attendance/report`;
+}
+
 function calculateDaysLeft(dateStr) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -557,17 +562,21 @@ function renderKanban() {
     if (!container) return;
     container.innerHTML = '';
 
+    const activeProjects = projects.filter(p => !p.archived);
+    const archivedProjects = projects.filter(p => p.archived);
+
     const groups = { null: { name: 'Unassigned', tasks: [] } };
-    projects.forEach(p => groups[p.id] = { name: p.name, tasks: [] });
+    activeProjects.forEach(p => groups[p.id] = { name: p.name, tasks: [] });
     tasks.forEach(t => {
         const gid = t.project_id || 'null';
         if (groups[gid]) groups[gid].tasks.push(t);
     });
 
+    // ── Active swimlanes ──
     Object.entries(groups).forEach(([id, group]) => {
         if (group.tasks.length === 0 && id === 'null') return;
 
-        const project = projects.find(p => p.id == id) || { name: 'Unassigned' };
+        const project = activeProjects.find(p => p.id == id) || { name: 'Unassigned' };
         const dateDisplay = project.start_date && project.end_date 
             ? `<span class="text-[10px] font-black text-brand-blue uppercase tracking-widest bg-brand-blue/10 px-2 py-1 rounded ml-2">${project.start_date} → ${project.end_date}</span>`
             : '';
@@ -588,6 +597,9 @@ function renderKanban() {
                             </button>
                             <button onclick="openAttendanceModal(${id})" class="bg-green-50 text-green-700 hover:bg-green-100 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1" title="Attendance">
                                 <i data-lucide="users" class="w-3 h-3"></i> Attend
+                            </button>
+                            <button onclick="toggleArchiveProject(${id})" class="bg-amber-50 text-amber-700 hover:bg-amber-100 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1" title="Archive Project">
+                                <i data-lucide="archive" class="w-3 h-3"></i> Archive
                             </button>
                             <button onclick="editProject(${id})" class="text-gray-400 hover:text-brand-blue p-1 transition-colors" title="Edit Project">
                                 <i data-lucide="settings" class="w-5 h-5"></i>
@@ -650,7 +662,75 @@ function renderKanban() {
             }
         });
     });
+
+    // ── Archived Projects Section ──
+    if (archivedProjects.length > 0) {
+        const archivedSection = document.createElement('div');
+        archivedSection.className = 'mt-8';
+        archivedSection.innerHTML = `
+            <div class="bg-white rounded-3xl shadow border border-gray-200 overflow-hidden">
+                <button onclick="toggleArchivedSection()" class="w-full flex justify-between items-center px-8 py-4 bg-gray-50 hover:bg-gray-100 transition-colors text-left" id="archived-toggle-btn">
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="archive" class="w-5 h-5 text-gray-400"></i>
+                        <h3 class="text-lg font-black text-gray-500">Archived Projects</h3>
+                        <span class="bg-gray-300 text-white px-2.5 py-0.5 rounded-full text-[10px] font-black">${archivedProjects.length}</span>
+                    </div>
+                    <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-200" id="archived-chevron"></i>
+                </button>
+                <div id="archived-projects-list" class="hidden divide-y divide-gray-100">
+                    ${archivedProjects.map(p => {
+                        const tasksInArchived = tasks.filter(t => t.project_id == p.id);
+                        return `
+                            <div class="px-8 py-4 flex justify-between items-center hover:bg-gray-50 transition-colors">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-2 h-2 rounded-full bg-gray-300"></div>
+                                    <div>
+                                        <span class="font-bold text-gray-500">${p.name}</span>
+                                        <span class="text-[10px] text-gray-400 ml-2">${tasksInArchived.length} tasks</span>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button onclick="toggleArchiveProject(${p.id})" class="text-brand-blue hover:text-brand-dark text-[10px] font-black uppercase tracking-widest transition-colors px-2 py-1 rounded hover:bg-brand-blue/5">
+                                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 inline"></i> Unarchive
+                                    </button>
+                                    <button onclick="openFinanceModal(${p.id})" class="text-gray-300 hover:text-brand-blue p-1 transition-colors" title="Finance">
+                                        <i data-lucide="dollar-sign" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="openAttendanceModal(${p.id})" class="text-gray-300 hover:text-green-600 p-1 transition-colors" title="Attendance">
+                                        <i data-lucide="users" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="deleteProject(${p.id})" class="text-gray-300 hover:text-brand-red p-1 transition-colors" title="Delete">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+        container.appendChild(archivedSection);
+    }
+
     lucide.createIcons();
+}
+
+let archivedSectionVisible = false;
+function toggleArchivedSection() {
+    const list = document.getElementById('archived-projects-list');
+    const chevron = document.getElementById('archived-chevron');
+    archivedSectionVisible = !archivedSectionVisible;
+    if (list) list.classList.toggle('hidden');
+    if (chevron) chevron.style.transform = archivedSectionVisible ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+
+async function toggleArchiveProject(projectId) {
+    try {
+        const response = await fetch(`/api/projects/${projectId}/archive`, { method: 'PATCH' });
+        if (response.ok) fetchData();
+    } catch (error) {
+        console.error('Error toggling archive:', error);
+    }
 }
 
 function quickAddTask(projectId, status) {
@@ -1347,8 +1427,19 @@ function renderAttendance(records) {
 
     // Update summary — always based on full dataset, not filtered
     const totalPresent = currentAttendanceRecords.filter(r => r.attended).length;
+    const totalRegistered = currentAttendanceRecords.length;
     document.getElementById('att-count-present').textContent = totalPresent;
-    document.getElementById('att-count-total').textContent = currentAttendanceRecords.length;
+    document.getElementById('att-count-total').textContent = totalRegistered;
+
+    const percent = totalRegistered > 0 ? Math.round((totalPresent / totalRegistered) * 100) : 0;
+    const percentEl = document.getElementById('att-count-percent');
+    if (percentEl) {
+        percentEl.textContent = percent + '%';
+        // Color logic
+        if (percent >= 80) percentEl.className = 'text-3xl font-black text-green-600';
+        else if (percent >= 50) percentEl.className = 'text-3xl font-black text-amber-500';
+        else percentEl.className = 'text-3xl font-black text-brand-red';
+    }
 
     lucide.createIcons();
 }
